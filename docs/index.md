@@ -132,9 +132,10 @@ All settings are environment variables. Key ones:
 | `GITHUB_PRIVATE_KEY` | — | Path to `.pem` file or inline PEM |
 | `GITHUB_WEBHOOK_SECRET` | — | Webhook signature secret |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key |
-| `GEMINI_API_KEY` | — | Google Gemini API key (for fallback/multi-model) |
-| `AGENT_MODEL` | `sonnet` | Model short name: `flash`, `haiku`, `sonnet`, `gemini-pro`, `opus` |
-| `AGENT_FALLBACK_MODEL` | `google/gemini-2.5-flash` | Fallback on primary failure |
+| `GEMINI_API_KEY` | — | Google Gemini API key |
+| `AGENT_MODEL` | `premium` | Model short name: `flash`, `haiku`, `sonnet`, `gemini-pro`, `standard`, `premium`, `opus` |
+| `AGENT_FALLBACK_MODEL` | `anthropic/claude-sonnet-4-6` | Fallback on primary failure |
+| `ALLOWED_REPOSITORIES` | empty | Optional comma-separated `owner/repo` allowlist |
 | `REVIEW_AUTO_APPROVE` | `true` | Auto-approve PRs with no blocking findings |
 | `REVIEW_MIN_SEVERITY` | `MEDIUM` | Minimum severity to post |
 | `FP_VERIFICATION_ENABLED` | `false` | Enable LLM false-positive verification |

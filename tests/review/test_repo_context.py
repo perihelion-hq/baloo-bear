@@ -1,11 +1,14 @@
 import tempfile
 from pathlib import Path
+from subprocess import CompletedProcess
+from unittest.mock import patch
 
 from baloo.agent.client import BalooAgent
 from baloo.github.models import FileChange, PRContext, PRDiscussionContext, PRMetadata
 from baloo.review.repo_context import (
     collect_repository_guidelines,
     enrich_pr_context_with_repository_guidelines,
+    materialize_repository,
 )
 
 
@@ -78,3 +81,28 @@ def test_enriches_pr_context_guidelines_from_repo_checkout():
     assert enriched is not pr_context
     assert "old root guideline" in enriched.repo_guidelines
     assert "server rules" in enriched.repo_guidelines
+
+
+def test_materialize_repository_uses_credential_file_not_token_in_git_args():
+    captured_args = []
+
+    def fake_run(args, **kwargs):
+        captured_args.append(args)
+        return CompletedProcess(args, 0)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        with (
+            patch("baloo.review.repo_context.settings.repo_checkout_enabled", True),
+            patch("baloo.review.repo_context.settings.repo_checkout_root", tmp),
+            patch(
+                "baloo.review.repo_context.GitHubAuth.get_installation_token",
+                return_value="secret-token-value",
+            ),
+            patch("baloo.review.repo_context.subprocess.run", side_effect=fake_run),
+        ):
+            checkout = materialize_repository("org/repo", "abcdef123456", 123)
+
+        assert checkout is not None
+        assert checkout.exists()
+        assert "secret-token-value" not in repr(captured_args)
+        assert not list(Path(tmp).glob("*-auth-*"))

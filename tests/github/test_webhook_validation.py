@@ -122,6 +122,26 @@ class TestValidateWebhookSecurity:
 
         assert result is None
 
+    @pytest.mark.asyncio
+    async def test_skips_when_repo_not_in_application_allowlist(self, monkeypatch):
+        monkeypatch.setenv("ALLOWED_REPOSITORIES", "org/repo")
+        from baloo.config.settings import reset_settings
+        from baloo.github.webhook_handler import _validate_webhook_security
+
+        reset_settings()
+        result = await _validate_webhook_security(111, "org/other-repo")
+
+        assert result == {"status": "skipped", "reason": "repository not allowed"}
+
+    def test_delivery_id_dedupe_tracks_recent_ids(self):
+        from baloo.github.webhook_handler import _mark_delivery_seen, _recent_delivery_ids
+
+        _recent_delivery_ids.clear()
+
+        assert _mark_delivery_seen("delivery-1", ttl_seconds=900) is False
+        assert _mark_delivery_seen("delivery-1", ttl_seconds=900) is True
+        assert _mark_delivery_seen(None, ttl_seconds=900) is False
+
 
 class TestHealthEndpoint:
     def test_health_returns_ok(self):

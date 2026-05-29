@@ -172,7 +172,10 @@ After updating the webhook URL, use GitHub's webhook delivery UI to send a ping 
 
 Install the GitHub App on exactly one repository first.
 
-Do not install it broadly yet. Baloo does not currently enforce a repository allowlist in application code, so installation scope matters.
+For broader installations, set `ALLOWED_REPOSITORIES` to a comma-separated
+`owner/repo` allowlist before expanding scope. Keep the GitHub App installation
+scope narrow as the first layer of protection and use the application allowlist
+as a second layer.
 
 ## 10. Open a Test PR
 

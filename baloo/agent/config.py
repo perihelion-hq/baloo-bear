@@ -19,8 +19,8 @@ MODEL_REGISTRY: dict[str, tuple[str, str, int]] = {
     "gemini-pro": ("google", "gemini-2.5-pro", 20),
     "sonnet": ("anthropic", "claude-sonnet-4-6", 20),
     # Premium tier — complex/security-sensitive reviews
-    "premium": ("google", "gemini-3.1-pro-preview", 30),
-    "gemini-3.1-pro": ("google", "gemini-3.1-pro-preview", 30),
+    "premium": ("google", "gemini-3-pro-preview", 30),
+    "gemini-3-pro": ("google", "gemini-3-pro-preview", 30),
     "opus": ("anthropic", "claude-opus-4-6", 30),
 }
 
@@ -43,7 +43,7 @@ def get_agent_options(model: str = None, thinking_level: str | None = None) -> P
 
     Args:
         model: Override model selection (default from settings).
-               Accepts short names ("flash", "haiku", "sonnet", "gemini-pro", "opus")
+               Accepts short names ("flash", "haiku", "sonnet", "gemini-pro", "premium", "opus")
                or full "provider/model" strings (e.g. "google/gemini-2.5-flash").
         thinking_level: Thinking level (off, minimal, low, medium, high).
                         Defaults to settings.pi_thinking_level.

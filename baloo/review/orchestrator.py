@@ -22,9 +22,9 @@ from baloo.fidelity.fidelity_report import (
     STATIC_FIDELITY_SENTINELS,
     format_fidelity_report,
 )
+from baloo.fidelity.linear_fetcher import fetch_linear_issue_content
 from baloo.fidelity.models import FidelityResult
 from baloo.fidelity.plan_fetcher import fetch_plan_content
-from baloo.fidelity.linear_fetcher import fetch_linear_issue_content
 from baloo.fidelity.ticket_extractor import extract_ticket_id
 from baloo.github.api_client import GitHubAPIClient, PostedReviewResult
 from baloo.github.models import (
@@ -907,6 +907,7 @@ async def process_pr_review(
     notify_progress: bool = True,
     synchronize_base_sha: str | None = None,
     head_sha: str = "",
+    delivery_id: str | None = None,
 ) -> None:
     """
     Process a PR review in the background.
@@ -935,7 +936,8 @@ async def process_pr_review(
             active_count = max(0, sum(1 for t in active_reviews.values() if not t.done()) - 1)
             logger.info(
                 f"Starting review for {repo_full_name}#{pr_number} "
-                f"(trigger={trigger_reason}, {active_count} other review(s) active)"
+                f"(trigger={trigger_reason}, delivery={delivery_id or 'unknown'}, "
+                f"{active_count} other review(s) active)"
             )
 
             # Create in-progress review row in database
@@ -1430,18 +1432,14 @@ async def process_pr_review(
                             f"\n\nPosted {posted_review_result.posted} inline comment(s)."
                         )
                 elif not request_changes and approve:
-                    completion_msg = (
-                        f"{_brand_prefix()} review completed in {review_duration}s. No issues found!"
-                    )
+                    completion_msg = f"{_brand_prefix()} review completed in {review_duration}s. No issues found!"
                 elif awaiting_threads:
                     completion_msg = (
                         f"{_brand_prefix()} review completed in {review_duration}s. "
                         f"Still waiting on {awaiting_threads} existing thread(s)."
                     )
                 else:
-                    completion_msg = (
-                        f"{_brand_prefix()} review completed in {review_duration}s. No new issues found."
-                    )
+                    completion_msg = f"{_brand_prefix()} review completed in {review_duration}s. No new issues found."
 
                 try:
                     await github_client.edit_comment(

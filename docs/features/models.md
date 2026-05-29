@@ -8,27 +8,30 @@ Baloo supports multiple LLM providers and models. You can use short names for co
 |---|---|---|---|---|
 | `flash` | Google | gemini-2.5-flash | 10 | Economy |
 | `haiku` | Anthropic | claude-haiku-4-5 | 10 | Economy |
+| `standard` | Anthropic | claude-sonnet-4-6 | 20 | Standard |
 | `sonnet` | Anthropic | claude-sonnet-4-6 | 20 | Standard |
 | `gemini-pro` | Google | gemini-2.5-pro | 20 | Standard |
+| `premium` | Google | gemini-3-pro-preview | 30 | Premium |
+| `gemini-3-pro` | Google | gemini-3-pro-preview | 30 | Premium |
 | `opus` | Anthropic | claude-opus-4-6 | 30 | Premium |
 
 ## Choosing a Model
 
 - **Economy** (`flash`, `haiku`) — Good for simple PRs (docs, deps, configs). Fast and cheap. Also used internally for FP verification.
-- **Standard** (`sonnet`, `gemini-pro`) — The default. Handles most code reviews well. Best cost/quality balance.
-- **Premium** (`opus`) — Best for complex PRs with deep logic, security-sensitive code, or architectural changes.
+- **Standard** (`standard`, `sonnet`, `gemini-pro`) — Handles most code reviews well. Best cost/quality balance.
+- **Premium** (`premium`, `gemini-3-pro`, `opus`) — The default. Best for complex PRs with deep logic, security-sensitive code, or architectural changes.
 
 ## Configuration
 
 ```bash
 # Use a short name
-AGENT_MODEL=sonnet
+AGENT_MODEL=premium
 
 # Or a full provider/model string
 AGENT_MODEL=anthropic/claude-sonnet-4-6
 
 # Premium model for highest quality
-AGENT_MODEL=opus
+AGENT_MODEL=google/gemini-3-pro-preview
 ```
 
 ## Automatic Fallback
@@ -36,7 +39,7 @@ AGENT_MODEL=opus
 If the primary model fails (rate limit, timeout, availability), Baloo automatically retries with a fallback model:
 
 ```bash
-AGENT_FALLBACK_MODEL=google/gemini-2.5-flash
+AGENT_FALLBACK_MODEL=anthropic/claude-sonnet-4-6
 ```
 
 The fallback uses a different provider to maximize availability. Set to empty to disable fallback.

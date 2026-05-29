@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-import asyncio
 from typing import Any
 from urllib import error, request
 
-from baloo.config.settings import settings
+from baloo.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ query IssueById($id: String!) {
 
 async def fetch_linear_issue_content(ticket_id: str) -> str | None:
     """Fetch a Linear issue and format it as plan content."""
+    settings = get_settings()
     if not settings.linear_api_key:
         return None
 
@@ -61,7 +62,9 @@ async def fetch_linear_issue_content(ticket_id: str) -> str | None:
         return None
 
     if payload.get("errors"):
-        logger.warning("Linear issue fetch returned errors for %s: %s", ticket_id, payload["errors"])
+        logger.warning(
+            "Linear issue fetch returned errors for %s: %s", ticket_id, payload["errors"]
+        )
         return None
 
     issue = (payload.get("data") or {}).get("issue")
