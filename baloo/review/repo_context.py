@@ -6,8 +6,8 @@ import logging
 import shutil
 import subprocess
 import tempfile
-import base64
 from pathlib import Path, PurePosixPath
+from urllib.parse import quote
 
 from baloo.config.settings import settings
 from baloo.github.auth import GitHubAuth
@@ -30,21 +30,27 @@ def materialize_repository(
     root = Path(settings.repo_checkout_root)
     root.mkdir(parents=True, exist_ok=True)
     safe_repo = repo_full_name.replace("/", "-")
-    checkout_dir = Path(
-        tempfile.mkdtemp(prefix=f"{safe_repo}-{head_sha[:8]}-", dir=str(root))
-    )
-
-    token = GitHubAuth().get_installation_token(installation_id)
-    basic_token = base64.b64encode(f"x-access-token:{token}".encode("utf-8")).decode("ascii")
-    extra_header = f"http.extraHeader=Authorization: Basic {basic_token}"
+    checkout_dir = Path(tempfile.mkdtemp(prefix=f"{safe_repo}-{head_sha[:8]}-", dir=str(root)))
     clone_url = f"https://github.com/{repo_full_name}.git"
+    auth_dir: Path | None = None
 
     try:
+        auth_dir = Path(tempfile.mkdtemp(prefix=f"{safe_repo}-{head_sha[:8]}-auth-", dir=str(root)))
+        credentials_file = auth_dir / ".git-credentials"
+
+        token = GitHubAuth().get_installation_token(installation_id)
+        credentials_file.write_text(
+            f"https://x-access-token:{quote(token, safe='')}@github.com\n",
+            encoding="utf-8",
+        )
+        credentials_file.chmod(0o600)
+        credential_helper = f"credential.helper=store --file={credentials_file}"
+
         subprocess.run(
             [
                 "git",
                 "-c",
-                extra_header,
+                credential_helper,
                 "clone",
                 "--no-checkout",
                 "--depth=1",
@@ -61,7 +67,7 @@ def materialize_repository(
             [
                 "git",
                 "-c",
-                extra_header,
+                credential_helper,
                 "-C",
                 str(checkout_dir),
                 "fetch",
@@ -84,7 +90,9 @@ def materialize_repository(
             timeout=120,
         )
     except subprocess.TimeoutExpired:
-        logger.warning("Failed to materialize %s@%s: git command timed out", repo_full_name, head_sha[:12])
+        logger.warning(
+            "Failed to materialize %s@%s: git command timed out", repo_full_name, head_sha[:12]
+        )
         cleanup_repository(checkout_dir)
         return None
     except subprocess.CalledProcessError as exc:
@@ -97,6 +105,18 @@ def materialize_repository(
         )
         cleanup_repository(checkout_dir)
         return None
+    except Exception as exc:
+        logger.warning(
+            "Failed to materialize %s@%s: %s",
+            repo_full_name,
+            head_sha[:12],
+            exc,
+        )
+        cleanup_repository(checkout_dir)
+        return None
+    finally:
+        if auth_dir is not None:
+            shutil.rmtree(auth_dir, ignore_errors=True)
 
     return checkout_dir
 

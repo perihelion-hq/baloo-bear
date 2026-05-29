@@ -33,13 +33,15 @@ All Baloo settings are environment variables. Set them in `.env`, pass them via 
 
 | Variable | Default | Description |
 |---|---|---|
-| `AGENT_PROVIDER` | `anthropic` | LLM provider: `anthropic`, `google` |
-| `AGENT_MODEL` | `sonnet` | Model short name or `provider/model` string. See [Models](features/models.md) |
-| `AGENT_FALLBACK_MODEL` | `google/gemini-2.5-flash` | Fallback model (`provider/model`). Empty to disable |
+| `AGENT_PROVIDER` | `google` | LLM provider: `anthropic`, `google` |
+| `AGENT_MODEL` | `premium` | Model short name or `provider/model` string. See [Models](features/models.md) |
+| `AGENT_FALLBACK_MODEL` | `anthropic/claude-sonnet-4-6` | Fallback model (`provider/model`). Empty to disable |
 | `AGENT_MAX_TOKENS` | `4096` | Max output tokens |
 | `AGENT_TEMPERATURE` | `0.2` | Generation temperature |
 | `PI_BINARY_PATH` | `pi` | Path to PI binary |
 | `PI_THINKING_LEVEL` | `medium` | PI thinking level: `off`, `minimal`, `low`, `medium`, `high` |
+| `ALLOWED_REPOSITORIES` | empty | Optional comma-separated `owner/repo` allowlist. Empty allows all repositories in the GitHub App installation |
+| `WEBHOOK_DELIVERY_DEDUPE_TTL_SECONDS` | `900` | Seconds to suppress duplicate GitHub webhook delivery IDs in this process |
 
 ## Review Behavior
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -24,6 +25,36 @@ from baloo.review.orchestrator import (
 )
 
 logger = logging.getLogger(__name__)
+_recent_delivery_ids: dict[str, float] = {}
+
+
+def _allowed_repository_names(raw: str) -> set[str]:
+    """Parse a comma-separated repository allowlist into normalized full names."""
+    return {repo.strip().lower() for repo in raw.split(",") if repo.strip()}
+
+
+def _is_repository_allowed(
+    repo_full_name: str | None, allowed_repositories: str | None = None
+) -> bool:
+    """Return whether the repository is allowed by optional application scope."""
+    allowed = _allowed_repository_names(allowed_repositories or "")
+    if not allowed:
+        return True
+    return bool(repo_full_name and repo_full_name.lower() in allowed)
+
+
+def _mark_delivery_seen(delivery_id: str | None, ttl_seconds: int) -> bool:
+    """Return True when a GitHub delivery was already seen recently."""
+    if not delivery_id:
+        return False
+    now = time.monotonic()
+    expired = [key for key, seen_at in _recent_delivery_ids.items() if now - seen_at > ttl_seconds]
+    for key in expired:
+        _recent_delivery_ids.pop(key, None)
+    if delivery_id in _recent_delivery_ids:
+        return True
+    _recent_delivery_ids[delivery_id] = now
+    return False
 
 
 @asynccontextmanager
@@ -114,6 +145,10 @@ async def _validate_webhook_security(
         )
         return {"status": "skipped", "reason": "installation not configured for this broker"}
 
+    if not _is_repository_allowed(repo_full_name, current_settings.allowed_repositories):
+        logger.info("Webhook skipped — repository %s not in application allowlist", repo_full_name)
+        return {"status": "skipped", "reason": "repository not allowed"}
+
     # Confirm this installation has active auth
     try:
         GitHubAuth().get_installation_token(installation_id)
@@ -153,6 +188,11 @@ async def handle_webhook(
 
     # Parse event type and payload
     event = request.headers.get("X-GitHub-Event")
+    delivery_id = request.headers.get("X-GitHub-Delivery")
+    if _mark_delivery_seen(delivery_id, settings.webhook_delivery_dedupe_ttl_seconds):
+        logger.info("Ignoring duplicate GitHub webhook delivery %s", delivery_id)
+        return {"status": "skipped", "reason": "duplicate delivery"}
+
     payload = await request.json()
 
     # GitHub App-level lifecycle events do not carry a repository payload.
@@ -168,7 +208,13 @@ async def handle_webhook(
     if _skip is not None:
         return _skip
 
-    logger.info(f"Received {event} event")
+    logger.info(
+        "Received %s event delivery=%s repo=%s installation=%s",
+        event,
+        delivery_id or "",
+        _repo_full_name or "",
+        _installation_id or "",
+    )
 
     # Handle pull_request events
     if event == "pull_request":
@@ -219,6 +265,7 @@ async def handle_webhook(
                         True,
                         before_sha if action == "synchronize" else None,
                         head_sha or "",
+                        delivery_id,
                     )
                 )
                 active_reviews[(repo_name, pr_number)] = task

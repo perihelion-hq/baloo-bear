@@ -487,7 +487,7 @@ class TestBalooAgentMetadata:
             assert result.metadata["output_tokens"] == 500
             assert result.metadata["cache_read_tokens"] == 1000
             assert result.metadata["cache_write_tokens"] == 200
-            assert result.metadata["cost_usd"] == pytest.approx(0.01455)
+            assert result.metadata["cost_usd"] == pytest.approx(0.10)
 
     def test_format_metadata_section(self):
         """Test summary formatting with metadata."""

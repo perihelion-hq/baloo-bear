@@ -48,8 +48,10 @@ The system prompt instructs the agent to check, in priority order:
 
 | Variable | Default | Description |
 |---|---|---|
-| `AGENT_MODEL` | `sonnet` | Model to use (see [Models](models.md)) |
-| `AGENT_FALLBACK_MODEL` | `google/gemini-2.5-flash` | Fallback if primary fails |
+| `AGENT_MODEL` | `premium` | Model to use (see [Models](models.md)) |
+| `AGENT_FALLBACK_MODEL` | `anthropic/claude-sonnet-4-6` | Fallback if primary fails |
 | `AGENT_MAX_TOKENS` | `4096` | Max output tokens |
 | `AGENT_TEMPERATURE` | `0.2` | Temperature for generation |
 | `PI_THINKING_LEVEL` | `medium` | Thinking depth: off, minimal, low, medium, high |
+| `ALLOWED_REPOSITORIES` | empty | Optional comma-separated `owner/repo` allowlist |
+| `WEBHOOK_DELIVERY_DEDUPE_TTL_SECONDS` | `900` | In-process duplicate delivery suppression window |

@@ -49,14 +49,18 @@ class Settings(BaseSettings):
         default=30,
         description="Minutes after which an in-progress review is considered stale and can be superseded",
     )
+    webhook_delivery_dedupe_ttl_seconds: int = Field(
+        default=900,
+        description="Seconds to suppress duplicate GitHub webhook delivery IDs in this process",
+    )
 
     # Agent Configuration
     agent_provider: str = Field(
-        default="anthropic", description="LLM provider (anthropic, google, openai)"
+        default="google", description="LLM provider (anthropic, google, openai)"
     )
-    agent_model: str = Field(default="claude-sonnet-4-6", description="Model to use for reviews")
+    agent_model: str = Field(default="premium", description="Model to use for reviews")
     agent_fallback_model: str = Field(
-        default="google/gemini-2.5-flash",
+        default="anthropic/claude-sonnet-4-6",
         description="Fallback model (provider/model) if the primary fails. Empty to disable.",
     )
     agent_max_tokens: int = Field(default=4096, description="Max tokens for agent responses")
@@ -86,6 +90,12 @@ class Settings(BaseSettings):
     review_use_checks_api: bool = Field(
         default=True,
         description="Use GitHub Checks API for MEDIUM severity issues",
+    )
+    allowed_repositories: str = Field(
+        default="",
+        description=(
+            "Comma-separated owner/repo allowlist. Empty means all installation repositories are allowed."
+        ),
     )
 
     # Branding Configuration

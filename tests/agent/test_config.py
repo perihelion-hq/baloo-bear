@@ -40,6 +40,24 @@ class TestGetAgentOptions:
         assert options.provider == "google"
         assert options.max_turns == 20
 
+    def test_get_options_with_standard_short_name(self):
+        options = get_agent_options("standard")
+        assert options.model == "claude-sonnet-4-6"
+        assert options.provider == "anthropic"
+        assert options.max_turns == 20
+
+    def test_get_options_with_premium_short_name(self):
+        options = get_agent_options("premium")
+        assert options.model == "gemini-3-pro-preview"
+        assert options.provider == "google"
+        assert options.max_turns == 30
+
+    def test_get_options_with_gemini_3_pro_short_name(self):
+        options = get_agent_options("gemini-3-pro")
+        assert options.model == "gemini-3-pro-preview"
+        assert options.provider == "google"
+        assert options.max_turns == 30
+
     # --- Explicit provider/model ---
 
     def test_get_options_with_provider_slash_model(self):
@@ -64,7 +82,9 @@ class TestGetAgentOptions:
 
     def test_get_options_with_default_model(self):
         options = get_agent_options()
-        assert options.model is not None
+        assert options.model == "gemini-3-pro-preview"
+        assert options.provider == "google"
+        assert options.max_turns == 30
         assert options.system_prompt is not None
 
     def test_thinking_level_override(self):
@@ -92,6 +112,9 @@ def test_thread_agent_settings_defaults():
     assert s.thread_agent_max_concurrent == 3
     assert s.feedback_signals_enabled is True
     assert s.feedback_signals_ttl_days == 180
+    assert s.agent_provider == "google"
+    assert s.agent_model == "premium"
+    assert s.agent_fallback_model == "anthropic/claude-sonnet-4-6"
 
 
 def test_ast_tools_settings_defaults():

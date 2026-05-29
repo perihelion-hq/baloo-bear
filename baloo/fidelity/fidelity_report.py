@@ -1,7 +1,7 @@
 """Format fidelity analysis results as markdown report."""
 
-from baloo.fidelity.models import FidelityResult
 from baloo.config.settings import get_settings
+from baloo.fidelity.models import FidelityResult
 
 NO_TICKET_FIDELITY_SENTINEL = "<!-- baloo:no-ticket-fidelity-report -->"
 MISSING_PLAN_FIDELITY_SENTINEL = "<!-- baloo:missing-plan-fidelity-report -->"
