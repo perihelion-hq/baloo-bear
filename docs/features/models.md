@@ -11,15 +11,15 @@ Baloo supports multiple LLM providers and models. You can use short names for co
 | `standard` | Anthropic | claude-sonnet-4-6 | 20 | Standard |
 | `sonnet` | Anthropic | claude-sonnet-4-6 | 20 | Standard |
 | `gemini-pro` | Google | gemini-2.5-pro | 20 | Standard |
-| `premium` | Google | gemini-3-pro-preview | 30 | Premium |
-| `gemini-3-pro` | Google | gemini-3-pro-preview | 30 | Premium |
+| `premium` | Google | gemini-3.1-pro-preview | 30 | Premium |
+| `gemini-3.1-pro` | Google | gemini-3.1-pro-preview | 30 | Premium |
 | `opus` | Anthropic | claude-opus-4-6 | 30 | Premium |
 
 ## Choosing a Model
 
 - **Economy** (`flash`, `haiku`) — Good for simple PRs (docs, deps, configs). Fast and cheap. Also used internally for FP verification.
 - **Standard** (`standard`, `sonnet`, `gemini-pro`) — Handles most code reviews well. Best cost/quality balance.
-- **Premium** (`premium`, `gemini-3-pro`, `opus`) — The default. Best for complex PRs with deep logic, security-sensitive code, or architectural changes.
+- **Premium** (`premium`, `gemini-3.1-pro`, `opus`) — The default. Best for complex PRs with deep logic, security-sensitive code, or architectural changes.
 
 ## Configuration
 
@@ -31,7 +31,7 @@ AGENT_MODEL=premium
 AGENT_MODEL=anthropic/claude-sonnet-4-6
 
 # Premium model for highest quality
-AGENT_MODEL=google/gemini-3-pro-preview
+AGENT_MODEL=google/gemini-3.1-pro-preview
 ```
 
 ## Automatic Fallback

@@ -48,13 +48,13 @@ class TestGetAgentOptions:
 
     def test_get_options_with_premium_short_name(self):
         options = get_agent_options("premium")
-        assert options.model == "gemini-3-pro-preview"
+        assert options.model == "gemini-3.1-pro-preview"
         assert options.provider == "google"
         assert options.max_turns == 30
 
-    def test_get_options_with_gemini_3_pro_short_name(self):
-        options = get_agent_options("gemini-3-pro")
-        assert options.model == "gemini-3-pro-preview"
+    def test_get_options_with_gemini_3_1_pro_short_name(self):
+        options = get_agent_options("gemini-3.1-pro")
+        assert options.model == "gemini-3.1-pro-preview"
         assert options.provider == "google"
         assert options.max_turns == 30
 
@@ -82,7 +82,7 @@ class TestGetAgentOptions:
 
     def test_get_options_with_default_model(self):
         options = get_agent_options()
-        assert options.model == "gemini-3-pro-preview"
+        assert options.model == "gemini-3.1-pro-preview"
         assert options.provider == "google"
         assert options.max_turns == 30
         assert options.system_prompt is not None
