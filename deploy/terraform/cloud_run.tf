@@ -12,6 +12,14 @@ locals {
     ALLOWED_REPOSITORIES = "perihelion-hq/roster"
     FP_AUDIT_LOG_PATH    = "/tmp/baloo/fp-audit.jsonl" # /var/log is read-only on Cloud Run
     REPO_CHECKOUT_ROOT   = "/tmp/baloo-repos"
+
+    # GitHub App identity. Numeric App ID, NOT the Client ID (getting-started.md §3, §12).
+    GITHUB_APP_ID      = "3903440"
+    DASHBOARD_USERNAME = "baloo"
+
+    # Install-specific values resolved at deploy time (empty defaults are safe).
+    PUBLIC_BASE_URL = var.public_base_url # service URL; set on re-apply once known
+    INSTALLATION_ID = var.installation_id # empty = serve all installations
   }
 
   # Secret-backed environment: env var name => Secret Manager secret_id.

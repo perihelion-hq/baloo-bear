@@ -20,6 +20,18 @@ variable "image" {
   default = "us-docker.pkg.dev/cloudrun/container/hello" # placeholder for first bootstrap apply
 }
 
+variable "public_base_url" {
+  type        = string
+  description = "Public base URL of the deployed service, used for absolute links and the comment icon in GitHub comments. Known only after the first apply; set on the re-apply via -var public_base_url=<service_url>. Empty omits absolute links and is harmless."
+  default     = ""
+}
+
+variable "installation_id" {
+  type        = string
+  description = "GitHub App installation ID for tenant scoping. Empty serves all installations; the ALLOWED_REPOSITORIES allowlist is the active repository-scope guard. Set to pin this broker to a single installation."
+  default     = ""
+}
+
 variable "db_tier" {
   type    = string
   default = "db-custom-1-3840" # 1 vCPU / 3.75 GB; tune later
