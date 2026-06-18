@@ -45,6 +45,13 @@ htmlcov/
 *.pem
 *.key
 
+# Local pi agent state — must never be baked into the image. pi/models.json is
+# copied explicitly in the Dockerfile; auth.json (pi credentials) and sessions/
+# are local-only, so excluding them keeps a populated local auth file from ever
+# leaking into a built image (the Dockerfile's "no secrets baked in" invariant).
+pi/auth.json
+pi/sessions/
+
 # Git
 .git/
 .gitignore
