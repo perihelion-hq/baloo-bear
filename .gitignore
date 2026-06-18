@@ -220,8 +220,12 @@ extensions/node_modules/
 
 .DS_Store
 
-# Private deployment configs (entire folder – instance-specific)
+# Private deployment configs (instance-specific); Terraform IaC is tracked.
+# Git requires negating the parent dir before individual subdirs can be un-ignored.
 deploy/
+!deploy/
+!deploy/terraform/
+!deploy/terraform/**
 site/
 
 .care-bear/

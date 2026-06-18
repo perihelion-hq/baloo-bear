@@ -1,0 +1,9 @@
+project_id    = "perihelion-485106"
+region        = "us-central1"
+service_name  = "rocky-pi"
+db_tier       = "db-custom-1-3840"
+max_instances = 4
+# db_password is NOT set here. Provide it at apply time:
+#   export TF_VAR_db_password="$(openssl rand -base64 24)"
+# image is set at deploy time:
+#   terraform apply -var image="us-central1-docker.pkg.dev/perihelion-485106/baloo/rocky-pi:<SHA>"
