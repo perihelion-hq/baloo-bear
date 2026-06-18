@@ -88,6 +88,17 @@ resource "google_cloud_run_v2_service" "baloo" {
           }
         }
       }
+
+      startup_probe {
+        http_get {
+          path = "/health"
+          port = 8000
+        }
+        initial_delay_seconds = 10
+        timeout_seconds       = 5
+        period_seconds        = 10
+        failure_threshold     = 30
+      }
     }
   }
 
@@ -95,4 +106,15 @@ resource "google_cloud_run_v2_service" "baloo" {
     google_secret_manager_secret_iam_member.accessor,
     google_project_iam_member.cloudsql_client,
   ]
+}
+
+# GitHub sends unauthenticated webhook POSTs; platform-layer auth must be open.
+# Request authenticity is enforced in-app via GitHub HMAC signature verification
+# (WEBHOOK signature check) and the dashboard password — not by Cloud Run IAM.
+resource "google_cloud_run_v2_service_iam_member" "invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.baloo.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }

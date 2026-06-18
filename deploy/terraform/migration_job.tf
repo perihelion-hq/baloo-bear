@@ -35,6 +35,10 @@ resource "google_cloud_run_v2_job" "migrate" {
           name  = "DATABASE_ENABLED"
           value = "true"
         }
+        env {
+          name  = "FP_AUDIT_LOG_PATH"
+          value = "/tmp/baloo/fp-audit.jsonl"
+        }
       }
     }
   }

@@ -60,6 +60,12 @@ SERVICE_URL="$(terraform output -raw service_url)"
 echo "Service URL: ${SERVICE_URL}"
 ```
 
+> **Public invoker binding:** the service is provisioned with an `allUsers`
+> `roles/run.invoker` IAM binding so GitHub webhooks can POST without a bearer
+> token (Cloud Run would otherwise return HTTP 403 on every delivery). Request
+> authenticity is enforced in-app via HMAC signature verification against
+> `GITHUB_WEBHOOK_SECRET` — not by the Cloud Run platform layer.
+
 ## 6. Set install-specific env, then redeploy
 Add to `local.plain_env` in `cloud_run.tf` (or pass via `-var`) and re-apply:
 `PUBLIC_BASE_URL=${SERVICE_URL}`, `GITHUB_APP_ID`, `INSTALLATION_ID`,

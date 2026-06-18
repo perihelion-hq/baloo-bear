@@ -16,7 +16,8 @@ variable "service_name" {
 variable "image" {
   type        = string
   description = "Full Artifact Registry image ref including SHA tag. Set at deploy time."
-  default     = "us-docker.pkg.dev/cloudrun/container/hello" # placeholder for first bootstrap apply
+  # Real deploy value: us-central1-docker.pkg.dev/perihelion-485106/baloo/rocky-pi:<git-sha>
+  default = "us-docker.pkg.dev/cloudrun/container/hello" # placeholder for first bootstrap apply
 }
 
 variable "db_tier" {
