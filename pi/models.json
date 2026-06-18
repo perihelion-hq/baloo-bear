@@ -3,7 +3,7 @@
     "synthetic": {
       "name": "Synthetic",
       "baseUrl": "https://api.synthetic.new/openai/v1",
-      "apiKey": "${SYNTHETIC_API_KEY}",
+      "apiKey": "SYNTHETIC_API_KEY",
       "api": "openai-completions",
       "models": [
         {
