@@ -10,8 +10,14 @@ locals {
     AGENT_MODEL          = "glm"
     AGENT_FALLBACK_MODEL = "google/gemini-3.1-pro-preview"
     ALLOWED_REPOSITORIES = "perihelion-hq/roster"
-    FP_AUDIT_LOG_PATH    = "/tmp/baloo/fp-audit.jsonl" # /var/log is read-only on Cloud Run
-    REPO_CHECKOUT_ROOT   = "/tmp/baloo-repos"
+
+    # Fidelity report is disabled: it spawns a pi --provider anthropic subprocess
+    # (fidelity_analyzer.py) that requires a real ANTHROPIC_API_KEY. We run only
+    # the synthetic GLM + gemini-fallback path, so ANTHROPIC_API_KEY carries a
+    # placeholder version solely to satisfy the secret_env "latest" reference.
+    FIDELITY_ENABLED   = "false"
+    FP_AUDIT_LOG_PATH  = "/tmp/baloo/fp-audit.jsonl" # /var/log is read-only on Cloud Run
+    REPO_CHECKOUT_ROOT = "/tmp/baloo-repos"
 
     # GitHub App identity. Numeric App ID, NOT the Client ID (getting-started.md §3, §12).
     GITHUB_APP_ID      = "3903440"

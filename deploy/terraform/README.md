@@ -89,10 +89,15 @@ printf 'postgresql+asyncpg://baloo:%s@/baloo?host=/cloudsql/%s' "${TF_VAR_db_pas
 # The rest: pipe each real value from a local file or stdin, never inline in shell history.
 gcloud secrets versions add SYNTHETIC_API_KEY     --data-file=/path/to/synthetic.key
 gcloud secrets versions add GEMINI_API_KEY        --data-file=/path/to/gemini.key
-gcloud secrets versions add ANTHROPIC_API_KEY     --data-file=/path/to/anthropic.key
 gcloud secrets versions add GITHUB_PRIVATE_KEY    --data-file=/path/to/github-app.pem
 gcloud secrets versions add GITHUB_WEBHOOK_SECRET --data-file=/path/to/webhook.secret
 gcloud secrets versions add DASHBOARD_PASSWORD    --data-file=/path/to/dashboard.pw
+
+# ANTHROPIC_API_KEY is a placeholder only: FIDELITY_ENABLED="false" in cloud_run.tf
+# disables the lone anthropic code path (fidelity report). The secret stays wired
+# in secret_env, so it needs one version for Cloud Run to resolve "latest". Inject a
+# real Anthropic key here instead only if you re-enable fidelity.
+printf 'disabled-fidelity-placeholder' | gcloud secrets versions add ANTHROPIC_API_KEY --data-file=-
 ```
 
 ## 5. Deploy the Cloud Run service and migration Job with the real image
