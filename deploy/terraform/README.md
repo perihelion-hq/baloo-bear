@@ -17,7 +17,7 @@ Real secret values are entered here by the operator and are never committed.
 ```bash
 cd deploy/terraform
 terraform init
-export TF_VAR_db_password="$(openssl rand -base64 24)"   # keep this; it goes into DATABASE_URL below
+export TF_VAR_db_password="$(openssl rand -hex 24)"   # hex avoids URL-reserved chars; goes into DATABASE_URL below
 terraform apply \
   -target=google_project_service.apis \
   -target=google_artifact_registry_repository.baloo
@@ -115,11 +115,13 @@ echo "Service URL: ${SERVICE_URL}"
 > `GITHUB_WEBHOOK_SECRET` — not by the Cloud Run platform layer.
 
 ## 6. Set install-specific env, then redeploy
-Add to `local.plain_env` in `cloud_run.tf` (or pass via `-var`) and re-apply:
-`PUBLIC_BASE_URL=${SERVICE_URL}`, `GITHUB_APP_ID`, `INSTALLATION_ID`,
-`DASHBOARD_USERNAME`, and optionally `BRAND_ICON_URL`.
+`GITHUB_APP_ID` (3903440) and `DASHBOARD_USERNAME` are already wired into
+`local.plain_env` in `cloud_run.tf`. The only deploy-time value is
+`PUBLIC_BASE_URL` (the service's own URL, known only after step 5); it drives
+absolute links and the comment icon and is otherwise cosmetic. Re-apply with it
+set (and optionally pin `installation_id`):
 ```bash
-terraform apply -var image="${IMAGE}"
+terraform apply -var image="${IMAGE}" -var public_base_url="${SERVICE_URL}"
 ```
 
 ## 7. Smoke verify (post-deploy verification)
