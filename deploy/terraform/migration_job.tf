@@ -26,7 +26,7 @@ resource "google_cloud_run_v2_job" "migrate" {
           name = "DATABASE_URL"
           value_source {
             secret_key_ref {
-              secret  = "DATABASE_URL"
+              secret  = google_secret_manager_secret.app["DATABASE_URL"].secret_id
               version = "latest"
             }
           }
