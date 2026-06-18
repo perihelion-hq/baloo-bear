@@ -1226,8 +1226,16 @@ async def process_pr_review(
             fresh_comments = verified_new_findings
             decision_comments = fresh_comments + [comment for _, comment in follow_up_comments]
 
+            # A None structured result from the agent surfaces here as
+            # metadata["agent_error"]. A review that never produced usable
+            # output must not degrade into a clean approval, so feed it into
+            # the decision engine (which short-circuits to no-approve/no-block).
+            agent_had_error = bool(agent_metadata.get("agent_error"))
+
             approve, request_changes = DecisionEngine.make_decision(
-                decision_comments, fidelity_result=fidelity_result
+                decision_comments,
+                fidelity_result=fidelity_result,
+                agent_had_error=agent_had_error,
             )
             awaiting_threads = pr_context.awaiting_response_threads - auto_resolved_count
 
@@ -1419,7 +1427,15 @@ async def process_pr_review(
             # Update progress comment with completion status
             review_duration = int(time.time() - review_start_time)
             if progress_comment_id:
-                if has_new_feedback or (routed["review"] or follow_up_comments):
+                if agent_had_error:
+                    # The agent never produced a usable review (e.g. unparseable
+                    # output). Be honest: no review, no approval, ask for a re-run.
+                    completion_msg = (
+                        f"{_brand_prefix()} try read your code. But inside something break. "
+                        f"Done in {review_duration} second but no review. I **NOT approve** — too risky. "
+                        "You run me again. Again."
+                    )
+                elif has_new_feedback or (routed["review"] or follow_up_comments):
                     # Review posted findings - update with summary
                     counts = count_by_severity(decision_comments)
                     completion_msg = (
@@ -1495,9 +1511,9 @@ async def process_pr_review(
                 )
                 total_cost_usd = _total_review_cost_usd(review_metadata, fidelity_metadata)
 
-                # Detect agent soft-failures: agent caught an error
-                # internally and returned 0 findings
-                agent_had_error = review_metadata.get("agent_error", False)
+                # agent_had_error was already derived from this same metadata
+                # (review_metadata is the agent_metadata object) before the
+                # decision, so reuse it rather than recomputing.
                 error_category = review_metadata.get("error_category")
                 error_detail = review_metadata.get("error_detail")
                 fallback_model = (

@@ -210,6 +210,34 @@ class TestMakeDecisionWithFidelity:
             assert request_changes is True
 
 
+class TestMakeDecisionAgentError:
+    """Agent errors must never be presented as a clean approval."""
+
+    def test_agent_error_does_not_approve_even_with_auto_approve(self):
+        """When the agent errored, no clean approve — even if auto_approve is on."""
+        with patch("baloo.config.settings.settings.review_auto_approve", True):
+            approve, request_changes = DecisionEngine.make_decision([], agent_had_error=True)
+            assert approve is False
+            assert request_changes is False
+
+    def test_agent_error_overrides_high_fidelity_approval(self):
+        """A perfect fidelity score must not approve on top of an agent error."""
+        fidelity = _make_fidelity_result(100)
+        with patch("baloo.config.settings.settings.fidelity_approval_threshold", 90):
+            approve, request_changes = DecisionEngine.make_decision(
+                [], fidelity_result=fidelity, agent_had_error=True
+            )
+            assert approve is False
+            assert request_changes is False
+
+    def test_no_agent_error_preserves_existing_behavior(self):
+        """Default agent_had_error=False keeps the prior auto-approve behavior."""
+        with patch("baloo.config.settings.settings.review_auto_approve", True):
+            approve, request_changes = DecisionEngine.make_decision([], agent_had_error=False)
+            assert approve is True
+            assert request_changes is False
+
+
 class TestGetDecisionSummary:
     """Tests for get_decision_summary helper."""
 

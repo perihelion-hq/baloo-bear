@@ -96,8 +96,12 @@ class BalooAgent(PIAgentBase):
             # Generate summary using shared formatter
             summary = CommentFormatter.format_summary(comments, metadata)
 
-            # Make approval decision using centralized engine
-            approve, request_changes = DecisionEngine.make_decision(comments)
+            # Make approval decision using centralized engine. A None
+            # structured_data means the agent never produced usable output —
+            # that must not degrade into a clean approval.
+            approve, request_changes = DecisionEngine.make_decision(
+                comments, agent_had_error=structured_data is None
+            )
 
             return ReviewResult(
                 summary=summary,

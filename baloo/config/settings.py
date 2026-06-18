@@ -73,6 +73,14 @@ class Settings(BaseSettings):
         default="medium",
         description="PI thinking level: off, minimal, low, medium, high",
     )
+    synthetic_api_key: str = Field(
+        default="",
+        description="Synthetic API key (also read from SYNTHETIC_API_KEY env at call time)",
+    )
+    synthetic_base_url: str = Field(
+        default="https://api.synthetic.new/openai/v1",
+        description="Synthetic OpenAI-compatible base URL for the direct JSON retry",
+    )
 
     # Review Configuration
     ticket_id_prefix: str = Field(
