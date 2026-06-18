@@ -36,22 +36,27 @@ def parse_timestamp(value: str | None) -> datetime:
 
 def is_baloo_actor(login: str | None, body: str | None = None) -> bool:
     """
-    Best-effort heuristic for determining if a comment was authored by Baloo.
+    Best-effort heuristic for determining if a comment was authored by the bot.
+
+    Matches both the current "rocky" brand and the historical "baloo" brand so
+    older comments stay recognized after the rename.
 
     Args:
         login: GitHub login of the author
         body: Comment body text
 
     Returns:
-        True if the comment was likely authored by Baloo
+        True if the comment was likely authored by the bot
     """
     normalized_login = (login or "").lower()
     normalized_body = (body or "").lower()
 
-    if "baloo" in normalized_login:
+    if "rocky" in normalized_login or "baloo" in normalized_login:
         return True
 
-    if normalized_login.endswith("[bot]") and "baloo" in normalized_body:
+    if normalized_login.endswith("[bot]") and (
+        "rocky" in normalized_body or "baloo" in normalized_body
+    ):
         return True
 
     return False

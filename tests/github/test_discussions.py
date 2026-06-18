@@ -8,6 +8,7 @@ from baloo.github.discussions import (
     build_discussion_digest,
     build_general_discussion,
     build_review_threads,
+    is_baloo_actor,
 )
 from baloo.github.models import DiscussionComment, DiscussionThread
 
@@ -246,3 +247,16 @@ def test_build_general_discussion_includes_reviews():
     assert len(comments) == 2
     assert comments[0].author == "maintainer"  # Newer timestamp first
     assert comments[1].body.startswith("[Approved Review]")
+
+
+def test_is_baloo_actor_recognizes_rocky_and_baloo():
+    """Bot self-recognition matches the current 'rocky' brand and historical 'baloo'."""
+    # Current deployed brand: rocky-pi[bot] posting "Rocky" comments.
+    assert is_baloo_actor("rocky-pi[bot]") is True
+    assert is_baloo_actor("some-bot[bot]", "🐻 Rocky look your code. Done.") is True
+    # Historical brand stays recognized after the rename.
+    assert is_baloo_actor("baloo-reviewer[bot]") is True
+    assert is_baloo_actor("some-bot[bot]", "🐻 Baloo review completed.") is True
+    # Unrelated authors are not treated as the bot.
+    assert is_baloo_actor("dev-user", "Fixed it.") is False
+    assert is_baloo_actor(None, None) is False

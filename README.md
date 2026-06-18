@@ -131,10 +131,11 @@ All settings are environment variables. Key ones:
 | `GITHUB_APP_ID` | — | Numeric GitHub App ID |
 | `GITHUB_PRIVATE_KEY` | — | Path to `.pem` file or inline PEM |
 | `GITHUB_WEBHOOK_SECRET` | — | Webhook signature secret |
+| `SYNTHETIC_API_KEY` | — | Synthetic.new key (OpenAI-compatible) for the default `glm` model |
+| `GEMINI_API_KEY` | — | Google Gemini API key (default fallback / multi-model) |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key |
-| `GEMINI_API_KEY` | — | Google Gemini API key (for fallback/multi-model) |
-| `AGENT_MODEL` | `sonnet` | Model short name: `flash`, `haiku`, `sonnet`, `gemini-pro`, `opus` |
-| `AGENT_FALLBACK_MODEL` | `google/gemini-2.5-flash` | Fallback on primary failure |
+| `AGENT_MODEL` | `glm` | Model short name: `flash`, `haiku`, `sonnet`, `gemini-pro`, `glm`, `premium`, `opus` |
+| `AGENT_FALLBACK_MODEL` | `google/gemini-3.1-pro-preview` | Fallback on primary failure |
 | `REVIEW_AUTO_APPROVE` | `true` | Auto-approve PRs with no blocking findings |
 | `REVIEW_MIN_SEVERITY` | `MEDIUM` | Minimum severity to post |
 | `FP_VERIFICATION_ENABLED` | `false` | Enable LLM false-positive verification |
@@ -172,7 +173,7 @@ uv run black --check baloo # format check
 
 You can run the same review pipeline against your working tree before opening a PR. The script builds a synthetic pull request from a git diff (`base...head`), loads `AGENTS.md` / `CONTRIBUTING.md` from the head ref when present, and prints findings to stdout — nothing is posted to GitHub.
 
-Requires the same LLM credentials as production (for example `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` in your environment).
+Requires the same LLM credentials as production (for example `SYNTHETIC_API_KEY` for the default `glm` model, or `GEMINI_API_KEY` / `ANTHROPIC_API_KEY`) in your environment. Custom providers like `synthetic` also require `pi/models.json` to be installed for `pi` — see [Development](docs/development.md) and [Models](docs/features/models.md#custom-providers).
 
 ```bash
 uv run python scripts/local_review.py

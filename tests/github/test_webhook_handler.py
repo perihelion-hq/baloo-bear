@@ -236,8 +236,8 @@ async def test_progress_comment_reports_dropped_inline_findings_internally():
         )
 
     completion_msg = mock_github_client.edit_comment.call_args.args[2]
-    assert "Found 2 issue(s)" in completion_msg
-    assert "Posted 1 inline comment(s)." in completion_msg
+    assert "Find 2 thing" in completion_msg
+    assert "Leave 1 note on the line." in completion_msg
     assert "Dropped" not in completion_msg
 
 
@@ -1015,7 +1015,7 @@ async def test_updates_progress_comment_when_no_actionable_findings():
         call_args = mock_github_client.edit_comment.call_args
         assert call_args[0][0] == "test/repo"
         assert call_args[0][1] == 12345  # The comment ID
-        assert "No issues found" in call_args[0][2] or "review completed" in call_args[0][2].lower()
+        assert "look your code" in call_args[0][2].lower()
 
 
 @pytest.mark.asyncio

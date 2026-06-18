@@ -41,7 +41,9 @@ class CommentFormatter:
         summary_parts.append("## Rocky Review Summary\n")
 
         if not comments:
-            summary_parts.append("✅ **No issues found!** Code looks good.")
+            summary_parts.append(
+                "✅ **Approve. Approve. Approve.** No issue. Code good. Good. Good."
+            )
         else:
             stats = []
             if critical > 0:
@@ -57,10 +59,12 @@ class CommentFormatter:
             summary_parts.append(f"\n**Total**: {len(comments)} issue(s) found")
 
             if critical > 0 or high > 0:
-                summary_parts.append("\n⚠️ **Please address CRITICAL/HIGH issues before merging**")
+                summary_parts.append(
+                    "\n⚠️ **Check. Check. Check.** Critical bug. High bug. You fix before merge. Fix. Fix."
+                )
             else:
                 summary_parts.append(
-                    "\n✅ **No blocking issues - safe to merge** (consider addressing MEDIUM/LOW items)"
+                    "\n✅ **Safe to merge. Merge. Merge.** No blocking bug. Medium and low, you fix if you want."
                 )
 
         if metadata:

@@ -986,7 +986,7 @@ async def process_pr_review(
                 progress_comment_id = await github_client.post_comment(
                     repo_full_name,
                     pr_number,
-                    f"{_brand_prefix()} is reviewing your code... This may take a moment.",
+                    f"{_brand_prefix()} look your code now. Wait. Wait.",
                 )
 
             # Fetch PR context
@@ -1242,7 +1242,7 @@ async def process_pr_review(
             if skipped_responded:
                 summary_text += f"\n\n💬 Skipped {skipped_responded} thread(s) with developer responses (not re-reviewed)."
             if skipped_duplicates:
-                summary_text += f"\n\n↪️ Skipped {skipped_duplicates} existing Baloo thread(s) already awaiting a response."
+                summary_text += f"\n\n↪️ Skipped {skipped_duplicates} existing Rocky thread(s) already awaiting a response."
             if skipped_outdated:
                 summary_text += f"\n\n⏭️ Skipped {skipped_outdated} outdated thread(s) (code changed under comment)."
             if skipped_resolved:
@@ -1269,7 +1269,7 @@ async def process_pr_review(
                 )
             if awaiting_threads:
                 summary_text += (
-                    f"\n\n⏳ {awaiting_threads} Baloo thread(s) remain open from earlier reviews."
+                    f"\n\n⏳ {awaiting_threads} Rocky thread(s) remain open from earlier reviews."
                 )
 
             review_result = ReviewResult(
@@ -1302,8 +1302,8 @@ async def process_pr_review(
             for thread, comment in follow_up_comments:
                 reply_body = (
                     comment.body
-                    if "Baloo follow-up" in comment.body
-                    else f"🔁 **Baloo follow-up:**\n\n{comment.body}"
+                    if "Rocky follow-up" in comment.body or "Baloo follow-up" in comment.body
+                    else f"🔁 **Rocky follow-up:**\n\n{comment.body}"
                 )
                 success = await github_client.reply_to_review_comment(
                     repo_full_name,
@@ -1339,7 +1339,7 @@ async def process_pr_review(
                         check_run_id = await checks_client.create_check_run(
                             repo_full_name=repo_full_name,
                             commit_sha=pr_context.head_sha,
-                            name="Baloo Code Quality",
+                            name="Rocky Code Quality",
                             conclusion="neutral",
                             summary=f"Found {len(routed['checks'])} code quality issue(s) (MEDIUM severity)",
                         )
@@ -1398,9 +1398,12 @@ async def process_pr_review(
             # Post approval review if no blocking issues
             if not request_changes and approve:
                 logger.info("No blocking issues found, posting approval review")
-                approval_msg = "✅ No critical or high severity issues found. Safe to merge!"
+                approval_msg = (
+                    "✅ Approve. Approve. Approve. No critical bug. No high bug. "
+                    "Code good. You merge now. Good. Good."
+                )
                 if routed["checks"]:
-                    approval_msg += f"\n\n💡 {len(routed['checks'])} medium severity suggestion(s) available in the Checks tab."
+                    approval_msg += f"\n\n💡 {len(routed['checks'])} medium thing wait in Checks tab. You look. Maybe fix."
 
                 await github_client.post_review(
                     repo_full_name,
@@ -1420,8 +1423,8 @@ async def process_pr_review(
                     # Review posted findings - update with summary
                     counts = count_by_severity(decision_comments)
                     completion_msg = (
-                        f"{_brand_prefix()} review completed in {review_duration}s.\n\n"
-                        f"Found {len(decision_comments)} issue(s): "
+                        f"{_brand_prefix()} look your code. Done in {review_duration} second.\n\n"
+                        f"Find {len(decision_comments)} thing: "
                         f"{counts.get(ReviewSeverity.CRITICAL.value, 0)} critical, "
                         f"{counts.get(ReviewSeverity.HIGH.value, 0)} high, "
                         f"{counts.get(ReviewSeverity.MEDIUM.value, 0)} medium, "
@@ -1429,17 +1432,23 @@ async def process_pr_review(
                     )
                     if posted_review_result is not None:
                         completion_msg += (
-                            f"\n\nPosted {posted_review_result.posted} inline comment(s)."
+                            f"\n\nLeave {posted_review_result.posted} note on the line. Look. Look."
                         )
                 elif not request_changes and approve:
-                    completion_msg = f"{_brand_prefix()} review completed in {review_duration}s. No issues found!"
+                    completion_msg = (
+                        f"{_brand_prefix()} look your code. Done in {review_duration} second. "
+                        "No issue. Code good. Good. Good."
+                    )
                 elif awaiting_threads:
                     completion_msg = (
-                        f"{_brand_prefix()} review completed in {review_duration}s. "
-                        f"Still waiting on {awaiting_threads} existing thread(s)."
+                        f"{_brand_prefix()} look your code. Done in {review_duration} second. "
+                        f"Still wait {awaiting_threads} thread. Wait. Wait."
                     )
                 else:
-                    completion_msg = f"{_brand_prefix()} review completed in {review_duration}s. No new issues found."
+                    completion_msg = (
+                        f"{_brand_prefix()} look your code. Done in {review_duration} second. "
+                        "No new issue. Good. Good."
+                    )
 
                 try:
                     await github_client.edit_comment(
@@ -1557,7 +1566,7 @@ async def process_pr_review(
                     await _gc.edit_comment(
                         repo_full_name,
                         progress_comment_id,
-                        "👋 This review was cancelled because a new commit was pushed. Baloo is starting a new review!",
+                        "👋 New commit come. Stop this review. Rocky start new review. New. New.",
                     )
             except Exception:
                 pass

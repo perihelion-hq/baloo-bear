@@ -56,11 +56,11 @@ class Settings(BaseSettings):
 
     # Agent Configuration
     agent_provider: str = Field(
-        default="google", description="LLM provider (anthropic, google, openai)"
+        default="synthetic", description="LLM provider (synthetic, google, anthropic, openai)"
     )
-    agent_model: str = Field(default="premium", description="Model to use for reviews")
+    agent_model: str = Field(default="glm", description="Model to use for reviews")
     agent_fallback_model: str = Field(
-        default="anthropic/claude-sonnet-4-6",
+        default="google/gemini-3.1-pro-preview",
         description="Fallback model (provider/model) if the primary fails. Empty to disable.",
     )
     agent_max_tokens: int = Field(default=4096, description="Max tokens for agent responses")
@@ -103,7 +103,7 @@ class Settings(BaseSettings):
         default="",
         description="Public base URL for absolute links in GitHub comments",
     )
-    brand_name: str = Field(default="Baloo", description="Display name in GitHub comments")
+    brand_name: str = Field(default="Rocky", description="Display name in GitHub comments")
     brand_icon_url: str = Field(
         default="",
         description="Absolute URL for the small icon shown at the start of GitHub comments",

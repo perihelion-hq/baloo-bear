@@ -45,6 +45,12 @@ COPY . .
 
 # Create non-root user for security
 RUN useradd -m -u 1000 baloo && chown -R baloo:baloo /app
+
+# Register custom pi providers (e.g. synthetic/GLM) so pi resolves them at runtime.
+# The committed models.json references API keys via ${ENV_VAR} only — no secrets baked in.
+RUN mkdir -p /home/baloo/.pi/agent
+COPY --chown=baloo:baloo pi/models.json /home/baloo/.pi/agent/models.json
+
 USER baloo
 
 # Expose port

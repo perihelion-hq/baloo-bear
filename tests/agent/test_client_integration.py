@@ -229,7 +229,7 @@ class TestBalooAgentSuccessPath:
             assert result.comments == []
             assert result.approve is True
             assert result.request_changes is False
-            assert "No issues found" in result.summary
+            assert "Approve. Approve. Approve." in result.summary
 
     @pytest.mark.asyncio
     async def test_review_pr_medium_severity_approves(self, sample_pr_context):
@@ -384,7 +384,7 @@ class TestBalooAgentSeveritySummary:
             mock_exec.return_value = _mock_pi_process(events)
             result = await agent.review_pr(sample_pr_context)
 
-            assert "LOW" in result.summary
+            assert "Low" in result.summary
             assert "🔵" in result.summary
 
 
