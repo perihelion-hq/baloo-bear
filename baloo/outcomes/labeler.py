@@ -11,6 +11,7 @@ from baloo.db.engine import get_session_factory
 from baloo.db.models import Finding, FindingOutcome, Review
 from baloo.db.tenant import apply_tenant_filter
 from baloo.github.api_client import GitHubAPIClient
+from baloo.github.discussions import is_baloo_actor
 from baloo.outcomes.signals import collect_thread_signals, detect_code_change
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ async def fetch_merge_signals(
         comment_id = c["id"]
         reply_to = c.get("in_reply_to_id")
         login = c.get("user", {}).get("login", "")
-        is_baloo = "baloo" in login.lower()
+        is_baloo = is_baloo_actor(login)
         comment_dict = {
             "author": login,
             "body": c.get("body", ""),

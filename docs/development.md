@@ -31,6 +31,21 @@ npm install
 cp .env.example .env
 ```
 
+### Custom pi providers
+
+The default `glm` model uses the custom `synthetic` provider, which `pi` reads
+from `~/.pi/agent/models.json`. Install the committed config once so local runs
+(and `scripts/local_review.py`) can resolve it:
+
+```bash
+mkdir -p ~/.pi/agent
+cp pi/models.json ~/.pi/agent/models.json
+```
+
+The file references the API key only as `${SYNTHETIC_API_KEY}`, so set that in
+your environment (`.env`) — no secret is stored in the file. See
+[Models → Custom Providers](features/models.md#custom-providers).
+
 ## 3. Run Baloo Directly
 
 ```bash

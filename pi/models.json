@@ -1,0 +1,20 @@
+{
+  "providers": {
+    "synthetic": {
+      "name": "Synthetic",
+      "baseUrl": "https://api.synthetic.new/openai/v1",
+      "apiKey": "${SYNTHETIC_API_KEY}",
+      "api": "openai-completions",
+      "models": [
+        {
+          "id": "hf:zai-org/GLM-5.2",
+          "name": "GLM-5.2 (Synthetic)",
+          "reasoning": true,
+          "input": ["text"],
+          "contextWindow": 524288,
+          "maxTokens": 65536
+        }
+      ]
+    }
+  }
+}

@@ -69,7 +69,7 @@ class GitHubChecksClient:
         Args:
             repo_full_name: Repository full name (owner/repo)
             commit_sha: Commit SHA to attach check to
-            name: Check run name (e.g., "Baloo Code Quality")
+            name: Check run name (e.g., "Rocky Code Quality")
             conclusion: "success", "failure", "neutral", "cancelled", "skipped", "timed_out", "action_required"
             summary: Summary text for the check
 
@@ -135,7 +135,7 @@ class GitHubChecksClient:
         url = f"{self.base_url}/repos/{repo_full_name}/check-runs/{check_run_id}"
         payload = {
             "output": {
-                "title": "Baloo Code Quality",
+                "title": "Rocky Code Quality",
                 "summary": f"Found {len(findings)} code quality issue(s)",
                 "annotations": annotations,
             }

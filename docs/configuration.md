@@ -15,8 +15,14 @@ All Baloo settings are environment variables. Set them in `.env`, pass them via 
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `ANTHROPIC_API_KEY` | ✅ | — | Anthropic API key (for Claude models) |
-| `GEMINI_API_KEY` | — | — | Google Gemini API key (for fallback / Gemini models) |
+| `SYNTHETIC_API_KEY` | ✅ | — | Synthetic.new API key (OpenAI-compatible) for the default `glm` model. Referenced as `${SYNTHETIC_API_KEY}` in [`pi/models.json`](../pi/models.json) |
+| `GEMINI_API_KEY` | — | — | Google Gemini API key (for the default fallback / Gemini models) |
+| `ANTHROPIC_API_KEY` | — | — | Anthropic API key (for Claude models) |
+
+> The default review model is `glm` (GLM-5.2 via the custom `synthetic`
+> provider), so `SYNTHETIC_API_KEY` is required out of the box. Switch
+> `AGENT_MODEL`/`AGENT_PROVIDER` to a built-in provider if you only have an
+> Anthropic or Google key. See [Custom Providers](features/models.md#custom-providers).
 
 ## Application
 
@@ -33,9 +39,9 @@ All Baloo settings are environment variables. Set them in `.env`, pass them via 
 
 | Variable | Default | Description |
 |---|---|---|
-| `AGENT_PROVIDER` | `google` | LLM provider: `anthropic`, `google` |
-| `AGENT_MODEL` | `premium` | Model short name or `provider/model` string. See [Models](features/models.md) |
-| `AGENT_FALLBACK_MODEL` | `anthropic/claude-sonnet-4-6` | Fallback model (`provider/model`). Empty to disable |
+| `AGENT_PROVIDER` | `synthetic` | LLM provider: `synthetic`, `google`, `anthropic` |
+| `AGENT_MODEL` | `glm` | Model short name or `provider/model` string. See [Models](features/models.md) |
+| `AGENT_FALLBACK_MODEL` | `google/gemini-3.1-pro-preview` | Fallback model (`provider/model`). Empty to disable |
 | `AGENT_MAX_TOKENS` | `4096` | Max output tokens |
 | `AGENT_TEMPERATURE` | `0.2` | Generation temperature |
 | `PI_BINARY_PATH` | `pi` | Path to PI binary |
