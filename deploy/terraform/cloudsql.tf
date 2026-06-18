@@ -5,7 +5,10 @@ resource "google_sql_database_instance" "baloo" {
   deletion_protection = true
 
   settings {
-    tier              = var.db_tier
+    tier = var.db_tier
+    # ENTERPRISE (not the default ENTERPRISE_PLUS) so db-custom-* tiers are valid
+    # and cost stays low for this single small instance.
+    edition           = "ENTERPRISE"
     availability_type = "ZONAL"
     disk_autoresize   = true
     backup_configuration {
