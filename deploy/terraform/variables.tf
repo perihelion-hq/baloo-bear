@@ -35,3 +35,17 @@ variable "max_instances" {
   type    = number
   default = 4
 }
+
+variable "sql_authorized_networks" {
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  description = "Operator IP allowlist for the Cloud SQL public endpoint. App traffic uses the /cloudsql Unix socket and does not need this; it is for operator break-glass (psql) access only. Default is the operator Tailscale exit IP, mirrored from roster infra/environments/dev/dev.auto.tfvars (operator-tailscale-exit). Update if the exit IP changes."
+  default = [
+    {
+      cidr_block   = "39.122.223.76/32"
+      display_name = "operator-tailscale-exit"
+    }
+  ]
+}

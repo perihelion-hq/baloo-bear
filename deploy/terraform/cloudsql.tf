@@ -13,6 +13,14 @@ resource "google_sql_database_instance" "baloo" {
     }
     ip_configuration {
       ipv4_enabled = true
+
+      dynamic "authorized_networks" {
+        for_each = var.sql_authorized_networks
+        content {
+          name  = authorized_networks.value.display_name
+          value = authorized_networks.value.cidr_block
+        }
+      }
     }
   }
 
