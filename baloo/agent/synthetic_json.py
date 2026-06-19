@@ -21,6 +21,7 @@ from typing import Any
 
 import httpx
 
+from baloo.agent.http_retry import post_with_retry_on_429
 from baloo.agent.pi_runtime import _extract_json_from_text
 from baloo.config.settings import get_settings
 
@@ -81,12 +82,13 @@ async def synthetic_json_completion(
     start = time.time()
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(
+            resp = await post_with_retry_on_429(
+                client,
                 f"{base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},
                 json=body,
+                label=label,
             )
-            resp.raise_for_status()
             data = resp.json()
 
         content = data["choices"][0]["message"]["content"]

@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 
 from baloo.agent.costs import normalize_usage
+from baloo.agent.http_retry import post_with_retry_on_429
 from baloo.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -769,12 +770,13 @@ Serialized payload:
         }
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post(
+                resp = await post_with_retry_on_429(
+                    client,
                     f"{base_url}/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}"},
                     json=body,
+                    label=self.agent_name,
                 )
-                resp.raise_for_status()
                 data = resp.json()
         except Exception as exc:
             logger.warning("%s: synthetic JSON call failed: %s", self.agent_name, exc)

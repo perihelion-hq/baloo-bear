@@ -4,6 +4,7 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from baloo.agent.pi_runtime import (
@@ -919,6 +920,70 @@ class TestPIAgentBaseRunQuery:
         assert metadata["json_retry"] is True
         # Exactly one pi subprocess (the primary); the retry went over HTTP
         assert exec_calls == 1
+
+    @staticmethod
+    def _make_429() -> httpx.HTTPStatusError:
+        """Build a 429 HTTPStatusError carrying a Retry-After header."""
+        return httpx.HTTPStatusError(
+            "429",
+            request=httpx.Request("POST", "http://x"),
+            response=httpx.Response(429, headers={"Retry-After": "1"}),
+        )
+
+    @pytest.mark.asyncio
+    async def test_synthetic_chat_json_retries_on_429_then_succeeds(self):
+        """A first POST hitting 429 retries; the second 200 recovers the review."""
+        ok = self._json_resp(
+            '{"findings": [{"file": "a.py", "line": 1, "severity": "HIGH",'
+            ' "category": "Security", "title": "X", "description": "Y"}], "summary": {}}'
+        )
+        err_resp = MagicMock()
+        err_resp.raise_for_status = MagicMock(side_effect=self._make_429())
+
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=[err_resp, ok])
+        acm = MagicMock()
+        acm.__aenter__ = AsyncMock(return_value=client)
+        acm.__aexit__ = AsyncMock(return_value=False)
+
+        agent = PIAgentBase(PIAgentOptions(provider="synthetic", model="hf:zai-org/GLM-5.2"))
+
+        with patch("baloo.agent.pi_runtime.httpx.AsyncClient", return_value=acm):
+            with patch("baloo.agent.http_retry.asyncio.sleep", AsyncMock()) as sleep:
+                parsed, content, usage = await agent._synthetic_chat_json(
+                    system_prompt="s", user_prompt="u", api_key="k", base_url="http://x"
+                )
+
+        assert parsed is not None
+        assert parsed["findings"][0]["file"] == "a.py"
+        assert client.post.await_count == 2
+        sleep.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_synthetic_chat_json_429_on_all_attempts_returns_empty(self):
+        """Persistent 429 exhausts retries and returns the existing failure tuple."""
+        err_resp = MagicMock()
+        err_resp.raise_for_status = MagicMock(side_effect=self._make_429())
+
+        client = AsyncMock()
+        client.post = AsyncMock(return_value=err_resp)
+        acm = MagicMock()
+        acm.__aenter__ = AsyncMock(return_value=client)
+        acm.__aexit__ = AsyncMock(return_value=False)
+
+        agent = PIAgentBase(PIAgentOptions(provider="synthetic", model="hf:zai-org/GLM-5.2"))
+
+        with patch("baloo.agent.pi_runtime.httpx.AsyncClient", return_value=acm):
+            with patch("baloo.agent.http_retry.asyncio.sleep", AsyncMock()):
+                parsed, content, usage = await agent._synthetic_chat_json(
+                    system_prompt="s", user_prompt="u", api_key="k", base_url="http://x"
+                )
+
+        assert parsed is None
+        assert content is None
+        assert usage == {}
+        # First attempt + 3 retries == 4 POSTs.
+        assert client.post.await_count == 4
 
     @pytest.mark.asyncio
     async def test_usage_aggregation_across_turns(self):

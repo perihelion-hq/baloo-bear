@@ -158,8 +158,17 @@ class Settings(BaseSettings):
         ),
     )
     fp_verification_max_concurrent: int = Field(
-        default=5,
+        default=2,
         description="Max concurrent FP verification calls",
+    )
+    fp_verification_skip_severities: list[str] = Field(
+        default=["CRITICAL", "HIGH"],
+        description=(
+            "Severities that bypass FP verification and are kept unconditionally "
+            "(no synthetic call). Compared case-insensitively against the finding "
+            "severity. FP verification only drops findings, so the riskiest "
+            "(CRITICAL/HIGH) are never sent to it; only MEDIUM/LOW are verified."
+        ),
     )
     fp_audit_log_path: str = Field(
         default="/var/log/baloo/fp-audit.jsonl",

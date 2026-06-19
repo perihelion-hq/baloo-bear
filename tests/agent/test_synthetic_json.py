@@ -69,6 +69,71 @@ async def test_http_error_returns_none_with_error_metadata():
     assert meta["provider"] == "synthetic"
 
 
+def _make_429() -> httpx.HTTPStatusError:
+    """Build a 429 HTTPStatusError carrying a Retry-After header."""
+    return httpx.HTTPStatusError(
+        "429",
+        request=httpx.Request("POST", "http://x"),
+        response=httpx.Response(429, headers={"Retry-After": "1"}),
+    )
+
+
+@pytest.mark.asyncio
+async def test_retries_on_429_then_succeeds():
+    """A first POST hitting 429 retries with backoff; the second 200 succeeds."""
+    ok_json = {
+        "choices": [{"message": {"content": '{"verdict": "fp"}'}}],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 2},
+    }
+    ok_resp = MagicMock()
+    ok_resp.json = MagicMock(return_value=ok_json)
+    ok_resp.raise_for_status = MagicMock()
+
+    err_resp = MagicMock()
+    err_resp.raise_for_status = MagicMock(side_effect=_make_429())
+
+    client = AsyncMock()
+    client.post = AsyncMock(side_effect=[err_resp, ok_resp])
+    acm = MagicMock()
+    acm.__aenter__ = AsyncMock(return_value=client)
+    acm.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("baloo.agent.synthetic_json.httpx.AsyncClient", return_value=acm):
+        with patch("baloo.agent.http_retry.asyncio.sleep", AsyncMock()) as sleep:
+            parsed, meta = await synthetic_json_completion(
+                model="m", system_prompt="s", user_prompt="u"
+            )
+
+    assert parsed == {"verdict": "fp"}
+    assert meta["is_error"] is False
+    assert client.post.await_count == 2
+    sleep.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_429_on_all_attempts_returns_error():
+    """Persistent 429 exhausts retries and surfaces the existing failure result."""
+    err_resp = MagicMock()
+    err_resp.raise_for_status = MagicMock(side_effect=_make_429())
+
+    client = AsyncMock()
+    client.post = AsyncMock(return_value=err_resp)
+    acm = MagicMock()
+    acm.__aenter__ = AsyncMock(return_value=client)
+    acm.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("baloo.agent.synthetic_json.httpx.AsyncClient", return_value=acm):
+        with patch("baloo.agent.http_retry.asyncio.sleep", AsyncMock()):
+            parsed, meta = await synthetic_json_completion(
+                model="m", system_prompt="s", user_prompt="u"
+            )
+
+    assert parsed is None
+    assert meta["is_error"] is True
+    # First attempt + 3 retries == 4 POSTs.
+    assert client.post.await_count == 4
+
+
 @pytest.mark.asyncio
 async def test_unparseable_content_returns_none_with_error_flag():
     response_json = {
