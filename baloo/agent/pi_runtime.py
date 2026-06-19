@@ -647,6 +647,7 @@ class PIAgentBase:
             structured_output, retry_metadata, retry_raw_text = await self._retry_json(
                 raw_text=result.assistant_text,
                 proc_cwd=cwd,
+                original_query=query,
             )
             if retry_metadata:
                 # Accumulate retry costs into the main metadata
@@ -713,7 +714,7 @@ Serialized payload:
 ```"""
 
     async def _retry_json(
-        self, *, raw_text: str, proc_cwd: str | None
+        self, *, raw_text: str, proc_cwd: str | None, original_query: str | None = None
     ) -> tuple[Any, dict[str, Any] | None, str | None]:
         """Ask the model to repair its malformed JSON.
 
@@ -727,7 +728,9 @@ Serialized payload:
         Returns (parsed_json_or_None, metadata_or_None, raw_retry_text).
         """
         if self.options.provider == "synthetic":
-            return await self._retry_json_synthetic(raw_text=raw_text)
+            return await self._retry_json_synthetic(
+                raw_text=raw_text, original_query=original_query
+            )
         return await self._retry_json_pi(raw_text=raw_text, proc_cwd=proc_cwd)
 
     def _build_retry_messages(self, raw_text: str) -> tuple[str, str]:
@@ -746,27 +749,16 @@ Serialized payload:
             self._JSON_RETRY_PROMPT_TEMPLATE.format(payload=retry_payload),
         )
 
-    async def _retry_json_synthetic(
-        self, *, raw_text: str
-    ) -> tuple[Any, dict[str, Any] | None, str | None]:
-        """Repair JSON via a direct Synthetic /chat/completions call.
+    async def _synthetic_chat_json(
+        self, *, system_prompt: str, user_prompt: str, api_key: str, base_url: str
+    ) -> tuple[Any, str | None, dict[str, Any]]:
+        """One Synthetic /chat/completions json_object call.
 
-        Synthetic's OpenAI-compatible endpoint supports response_format, so we
-        force {"type": "json_object"} and keep GLM as the worker. temperature
-        and max_tokens are intentionally omitted — GLM-5.2 is a reasoning model
-        and rejects some sampling params.
-
-        SECURITY: raw_text is model-generated assistant output, not direct user
-        input. It is wrapped as an inert JSON string payload (see
-        _build_retry_messages) so the repair model treats it as data only.
+        Returns ``(review_or_None, raw_content_or_None, usage)``. ``review_or_None``
+        is the parsed object only when it is review-shaped; otherwise None (so the
+        caller can escalate). Never raises — transport/HTTP errors return
+        ``(None, None, {})``.
         """
-        settings = get_settings()
-        api_key = settings.synthetic_api_key or os.environ.get("SYNTHETIC_API_KEY", "")
-        base_url = (settings.synthetic_base_url or "https://api.synthetic.new/openai/v1").rstrip(
-            "/"
-        )
-
-        system_prompt, user_prompt = self._build_retry_messages(raw_text)
         body = {
             "model": self.options.model,
             "messages": [
@@ -775,8 +767,6 @@ Serialized payload:
             ],
             "response_format": {"type": "json_object"},
         }
-
-        start = time.time()
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 resp = await client.post(
@@ -786,49 +776,117 @@ Serialized payload:
                 )
                 resp.raise_for_status()
                 data = resp.json()
+        except Exception as exc:
+            logger.warning("%s: synthetic JSON call failed: %s", self.agent_name, exc)
+            return None, None, {}
 
-            content = data["choices"][0]["message"]["content"]
-            parsed = _extract_json_from_text(content)
-            if parsed is not None and not _is_review_shaped(parsed):
-                logger.warning(
-                    "%s: synthetic JSON retry returned non-review-shaped JSON "
-                    "(keys=%s); treating as a failed retry",
-                    self.agent_name,
-                    list(parsed.keys()),
-                )
-                parsed = None
+        content = data["choices"][0]["message"]["content"]
+        parsed = _extract_json_from_text(content)
+        if parsed is not None and not _is_review_shaped(parsed):
+            logger.warning(
+                "%s: synthetic JSON call returned non-review-shaped JSON (keys=%s)",
+                self.agent_name,
+                list(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__,
+            )
+            parsed = None
+        return parsed, content, (data.get("usage") or {})
 
-            usage = data.get("usage") or {}
-            reasoning_tokens = (usage.get("completion_tokens_details") or {}).get(
+    async def _retry_json_synthetic(
+        self, *, raw_text: str, original_query: str | None = None
+    ) -> tuple[Any, dict[str, Any] | None, str | None]:
+        """Recover review JSON via direct Synthetic /chat/completions calls.
+
+        Synthetic supports response_format, so we force {"type": "json_object"}
+        and keep GLM as the worker (temperature/max_tokens omitted — GLM-5.2
+        rejects some sampling params). Up to two attempts:
+
+        1. Convert/extract findings from the malformed assistant text. Cheap;
+           works when the text already contains the findings.
+        2. If that yields no usable review AND the original review prompt is
+           available, RE-REVIEW the diff directly via json_object. This recovers
+           the case where the primary output was an incomplete reasoning preamble
+           with no findings to extract (the observed fail-closed scenario).
+
+        SECURITY: raw_text is model output wrapped as inert data (see
+        _build_retry_messages). The re-review re-issues the original trusted
+        review prompt — the same one the agent already ran.
+
+        Returns (review_or_None, metadata_or_None, raw_retry_text).
+        """
+        settings = get_settings()
+        api_key = settings.synthetic_api_key or os.environ.get("SYNTHETIC_API_KEY", "")
+        base_url = (settings.synthetic_base_url or "https://api.synthetic.new/openai/v1").rstrip(
+            "/"
+        )
+
+        start = time.time()
+        in_tok = out_tok = reasoning_tok = 0
+        http_ok = False
+        last_content: str | None = None
+
+        def _tally(usage: dict[str, Any]) -> None:
+            nonlocal in_tok, out_tok, reasoning_tok
+            in_tok += usage.get("prompt_tokens", 0)
+            out_tok += usage.get("completion_tokens", 0)
+            reasoning_tok += (usage.get("completion_tokens_details") or {}).get(
                 "reasoning_tokens", 0
             )
-            metadata = {
-                "model": self.options.model,
-                "input_tokens": usage.get("prompt_tokens", 0),
-                "output_tokens": usage.get("completion_tokens", 0),
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "thinking_tokens": reasoning_tokens,
-                "thinking_budget": None,
-                # Synthetic does not bill through our cost model; leave at 0.
-                "cost_usd": 0.0,
-                "num_turns": 1,
-                "duration_seconds": time.time() - start,
-                "is_error": parsed is None,
-                "max_turns_reached": False,
-            }
 
-            if parsed is not None:
-                logger.info("%s: synthetic JSON retry succeeded", self.agent_name)
-            else:
-                logger.warning(
-                    "%s: synthetic JSON retry did not recover a usable review", self.agent_name
-                )
-            return parsed, metadata, content
+        # Attempt 1: convert/extract from the malformed assistant text.
+        sys_p, usr_p = self._build_retry_messages(raw_text)
+        parsed, content, usage = await self._synthetic_chat_json(
+            system_prompt=sys_p, user_prompt=usr_p, api_key=api_key, base_url=base_url
+        )
+        _tally(usage)
+        if content is not None:
+            http_ok = True
+            last_content = content
 
-        except Exception as exc:
-            logger.warning("%s: synthetic JSON retry failed: %s", self.agent_name, exc)
+        # Attempt 2: re-review the diff directly when extraction found nothing.
+        if parsed is None and original_query:
+            logger.info(
+                "%s: extract retry yielded no review; re-reviewing diff via json_object",
+                self.agent_name,
+            )
+            parsed2, content2, usage2 = await self._synthetic_chat_json(
+                system_prompt=self.options.system_prompt,
+                user_prompt=original_query,
+                api_key=api_key,
+                base_url=base_url,
+            )
+            _tally(usage2)
+            if content2 is not None:
+                http_ok = True
+                last_content = content2
+            if parsed2 is not None:
+                parsed = parsed2
+
+        if not http_ok:
+            # No HTTP call succeeded — total transport failure.
             return None, None, None
+
+        metadata = {
+            "model": self.options.model,
+            "input_tokens": in_tok,
+            "output_tokens": out_tok,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "thinking_tokens": reasoning_tok,
+            "thinking_budget": None,
+            # Synthetic does not bill through our cost model; leave at 0.
+            "cost_usd": 0.0,
+            "num_turns": 1,
+            "duration_seconds": time.time() - start,
+            "is_error": parsed is None,
+            "max_turns_reached": False,
+        }
+        if parsed is not None:
+            logger.info("%s: synthetic JSON retry succeeded", self.agent_name)
+        else:
+            logger.warning(
+                "%s: synthetic JSON retry did not recover a usable review", self.agent_name
+            )
+        return parsed, metadata, last_content
 
     async def _retry_json_pi(
         self, *, raw_text: str, proc_cwd: str | None
