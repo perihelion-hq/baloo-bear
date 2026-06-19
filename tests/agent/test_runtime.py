@@ -754,6 +754,77 @@ class TestPIAgentBaseRunQuery:
         # System prompt reframed to conversion; returns only JSON
         assert "JSON" in system
 
+    @staticmethod
+    def _json_resp(content: str, *, prompt_tokens: int = 100, completion_tokens: int = 10):
+        resp = MagicMock()
+        resp.json = MagicMock(
+            return_value={
+                "choices": [{"message": {"content": content}}],
+                "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
+            }
+        )
+        resp.raise_for_status = MagicMock()
+        return resp
+
+    @pytest.mark.asyncio
+    async def test_synthetic_retry_rereviews_diff_when_extract_fails(self):
+        """When the primary output is an incomplete preamble (no findings to
+        extract), attempt 1 (extract-from-prose) fails. If the original review
+        prompt is available, attempt 2 RE-REVIEWS the diff via json_object and
+        recovers findings — the #687 fail-closed scenario."""
+        extract = self._json_resp('{"malformed_response": "Let me compile my final analysis"}')
+        rereview = self._json_resp(
+            '{"findings": [{"file": "a.py", "line": 2, "severity": "HIGH", "category": "Security",'
+            ' "title": "X", "description": "Y"}], "summary": {}}',
+            prompt_tokens=800,
+            completion_tokens=120,
+        )
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=[extract, rereview])
+        acm = MagicMock()
+        acm.__aenter__ = AsyncMock(return_value=client)
+        acm.__aexit__ = AsyncMock(return_value=False)
+
+        agent = PIAgentBase(
+            PIAgentOptions(
+                provider="synthetic", model="hf:zai-org/GLM-5.2", system_prompt="REVIEW SYS"
+            )
+        )
+        with patch("baloo.agent.pi_runtime.httpx.AsyncClient", return_value=acm):
+            parsed, metadata, raw = await agent._retry_json_synthetic(
+                raw_text="Now I have the full picture. Let me compile my final analysis.",
+                original_query="Review this PR diff:\n<diff here>",
+            )
+
+        assert parsed is not None
+        assert parsed["findings"][0]["file"] == "a.py"
+        assert client.post.await_count == 2  # extract failed -> re-review fired
+        assert metadata["is_error"] is False
+        # the re-review used the review system prompt + the original query
+        rereview_body = client.post.await_args_list[1].kwargs["json"]
+        assert rereview_body["messages"][0]["content"] == "REVIEW SYS"
+        assert "Review this PR diff" in rereview_body["messages"][-1]["content"]
+        assert rereview_body["response_format"] == {"type": "json_object"}
+
+    @pytest.mark.asyncio
+    async def test_synthetic_retry_no_rereview_without_original_query(self):
+        """Without the original review prompt, a failed extract does NOT trigger
+        a re-review (only one call), and the retry reports failure."""
+        extract = self._json_resp('{"malformed_response": "prose"}')
+        client = AsyncMock()
+        client.post = AsyncMock(side_effect=[extract])
+        acm = MagicMock()
+        acm.__aenter__ = AsyncMock(return_value=client)
+        acm.__aexit__ = AsyncMock(return_value=False)
+
+        agent = PIAgentBase(PIAgentOptions(provider="synthetic", model="hf:zai-org/GLM-5.2"))
+        with patch("baloo.agent.pi_runtime.httpx.AsyncClient", return_value=acm):
+            parsed, metadata, raw = await agent._retry_json_synthetic(raw_text="prose preamble")
+
+        assert parsed is None
+        assert client.post.await_count == 1
+        assert metadata["is_error"] is True
+
     @pytest.mark.asyncio
     async def test_synthetic_retry_recovers_from_prose_in_run_query(self):
         """End-to-end: GLM emits prose, run_query recovers findings via the
