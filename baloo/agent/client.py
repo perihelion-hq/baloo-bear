@@ -113,6 +113,10 @@ class BalooAgent(PIAgentBase):
                 metadata["agent_error"] = True
                 if metadata.get("max_turns_reached"):
                     metadata["error_category"] = "max_turns_reached"
+                elif metadata.get("finish_reason") == "length":
+                    # Output hit the token ceiling: the (truncated) JSON cannot be
+                    # trusted as a complete review. Mark it explicitly; never approve.
+                    metadata["error_category"] = "truncated"
                 elif retry_lost_findings:
                     metadata["error_category"] = metadata.get("error_category", "json_parse_error")
                 else:

@@ -180,6 +180,22 @@ class TestBalooAgentErrorHandling:
         assert result.metadata["error_category"] == "max_turns_reached"
 
     @pytest.mark.asyncio
+    async def test_truncated_finish_reason_sets_error_category(self, sample_pr_context):
+        """A length-truncated response (finish_reason=='length') with no usable
+        review must fail closed as 'truncated', and must never approve."""
+        with patch.object(
+            BalooAgent,
+            "_run_with_fallback",
+            new=AsyncMock(return_value=(None, {"finish_reason": "length", "model": "glm"})),
+        ):
+            agent = BalooAgent()
+            result = await agent.review_pr(sample_pr_context)
+
+        assert result.metadata["agent_error"] is True
+        assert result.metadata["error_category"] == "truncated"
+        assert result.approve is False
+
+    @pytest.mark.asyncio
     async def test_review_pr_normalizes_top_level_findings_array(self, sample_pr_context):
         """GLM-5.2 sometimes returns findings as a top-level JSON array instead
         of {"findings":[...]}. That output must be NORMALIZED into real comments

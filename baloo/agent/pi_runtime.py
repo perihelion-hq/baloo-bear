@@ -667,6 +667,10 @@ class PIAgentBase:
                 metadata["cost_usd"] += retry_metadata.get("cost_usd", 0)
                 metadata["num_turns"] += retry_metadata.get("num_turns", 0)
                 metadata["json_retry"] = True
+                # Surface the finalize's finish_reason so the client can mark a
+                # length-truncated re-review as REVIEW_FAILED (error_category=truncated).
+                if retry_metadata.get("finish_reason") is not None:
+                    metadata["finish_reason"] = retry_metadata["finish_reason"]
                 if structured_output is None:
                     await review_logger.json_retry_failed(
                         raw_text=retry_raw_text or result.assistant_text
@@ -843,6 +847,7 @@ Serialized payload:
         in_tok = out_tok = reasoning_tok = 0
         http_ok = False
         last_content: str | None = None
+        last_finish_reason: str | None = None
 
         def _tally(usage: dict[str, Any]) -> None:
             nonlocal in_tok, out_tok, reasoning_tok
@@ -854,13 +859,14 @@ Serialized payload:
 
         # Attempt 1: convert/extract from the malformed assistant text.
         sys_p, usr_p = self._build_retry_messages(raw_text)
-        parsed, content, usage, _ = await self._synthetic_chat_json(
+        parsed, content, usage, finish1 = await self._synthetic_chat_json(
             system_prompt=sys_p, user_prompt=usr_p, api_key=api_key, base_url=base_url
         )
         _tally(usage)
         if content is not None:
             http_ok = True
             last_content = content
+            last_finish_reason = finish1
 
         # Attempt 2: re-review the diff directly when extraction found nothing.
         if parsed is None and original_query:
@@ -868,7 +874,7 @@ Serialized payload:
                 "%s: extract retry yielded no review; re-reviewing diff via json_object",
                 self.agent_name,
             )
-            parsed2, content2, usage2, _ = await self._synthetic_chat_json(
+            parsed2, content2, usage2, finish2 = await self._synthetic_chat_json(
                 system_prompt=self.options.system_prompt,
                 user_prompt=original_query,
                 api_key=api_key,
@@ -881,6 +887,7 @@ Serialized payload:
             if content2 is not None:
                 http_ok = True
                 last_content = content2
+                last_finish_reason = finish2
             if parsed2 is not None:
                 parsed = parsed2
 
@@ -902,6 +909,7 @@ Serialized payload:
             "duration_seconds": time.time() - start,
             "is_error": parsed is None,
             "max_turns_reached": False,
+            "finish_reason": last_finish_reason,
         }
         if parsed is not None:
             logger.info("%s: synthetic JSON retry succeeded", self.agent_name)
