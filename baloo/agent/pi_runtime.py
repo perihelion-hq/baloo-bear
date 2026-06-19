@@ -135,10 +135,10 @@ def _is_review_shaped(obj: Any) -> bool:
 
     Usable means either a ``{"findings": [...]}`` object OR a top-level findings
     array ``[ {finding}, ... ]`` (GLM-5.2 sometimes returns the bare array; it is
-    recoverable — ReviewOutput.model_validate wraps it). A top-level array counts
-    only when EVERY element is finding-like; an empty array is an empty review.
-    A non-review array (e.g. ``[{"foo": "bar"}]``, ``["text"]``) is rejected so
-    it fails closed instead of being coerced into a bogus finding.
+    recoverable — ReviewOutput.model_validate wraps it). In both forms, every
+    element must be finding-like; an empty array is an empty review. A non-review
+    array (e.g. ``[{"foo": "bar"}]``, ``["text"]``) is rejected so it fails
+    closed instead of being coerced into a bogus finding.
 
     ``response_format=json_object`` only guarantees *valid* JSON, not a
     schema-correct review. A repair that returns valid-but-non-review JSON — an
@@ -149,7 +149,9 @@ def _is_review_shaped(obj: Any) -> bool:
     """
     if isinstance(obj, list):
         return all(_looks_like_finding(item) for item in obj)
-    return isinstance(obj, dict) and isinstance(obj.get("findings"), list)
+    if isinstance(obj, dict) and isinstance(obj.get("findings"), list):
+        return all(_looks_like_finding(item) for item in obj["findings"])
+    return False
 
 
 def _load_json_with_repair(text: str) -> Any | None:

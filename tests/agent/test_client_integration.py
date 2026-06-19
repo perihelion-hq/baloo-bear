@@ -244,6 +244,27 @@ class TestBalooAgentErrorHandling:
         assert result.approve is False
 
     @pytest.mark.asyncio
+    async def test_review_pr_non_finding_findings_list_fails_closed(self, sample_pr_context):
+        """A {"findings": [...]} envelope still needs finding-like elements.
+
+        Otherwise an arbitrary object inside findings is accepted and coerced
+        into a bogus default "unknown:1" issue.
+        """
+        with patch.object(
+            BalooAgent,
+            "_run_with_fallback",
+            new=AsyncMock(
+                return_value=({"findings": [{"foo": "bar"}], "summary": {}}, {"model": "glm"})
+            ),
+        ):
+            agent = BalooAgent()
+            result = await agent.review_pr(sample_pr_context)
+
+        assert result.comments == []
+        assert result.metadata["agent_error"] is True
+        assert result.approve is False
+
+    @pytest.mark.asyncio
     async def test_json_retry_with_zero_findings_fails_closed(self, sample_pr_context):
         """A JSON retry means the agent's primary output was unparseable. Recovering
         ZERO findings from that is not trustworthy enough to bless a clean approval —
