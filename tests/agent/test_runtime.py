@@ -850,7 +850,13 @@ class TestPIAgentBaseRunQuery:
         rereview_body = client.post.await_args_list[1].kwargs["json"]
         assert rereview_body["messages"][0]["content"] == "REVIEW SYS"
         assert "Review this PR diff" in rereview_body["messages"][-1]["content"]
-        assert rereview_body["response_format"] == {"type": "json_object"}
+        # the re-review (forced finalize) is constrained to the ReviewOutput json_schema
+        assert rereview_body["response_format"]["type"] == "json_schema"
+        assert rereview_body["response_format"]["json_schema"]["name"] == "review_output"
+        assert rereview_body["response_format"]["json_schema"]["strict"] is True
+        # attempt 1 (extract-from-prose) still uses json_object
+        extract_body = client.post.await_args_list[0].kwargs["json"]
+        assert extract_body["response_format"] == {"type": "json_object"}
 
     @pytest.mark.asyncio
     async def test_synthetic_retry_no_rereview_without_original_query(self):

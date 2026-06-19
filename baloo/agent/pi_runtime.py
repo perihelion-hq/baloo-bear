@@ -24,6 +24,7 @@ import httpx
 
 from baloo.agent.costs import normalize_usage
 from baloo.agent.http_retry import post_with_retry_on_429
+from baloo.agent.schemas import review_output_json_schema
 from baloo.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -872,6 +873,9 @@ Serialized payload:
                 user_prompt=original_query,
                 api_key=api_key,
                 base_url=base_url,
+                # Forced finalize: constrain the re-review to the ReviewOutput
+                # schema so GLM emits schema-exact JSON (no prose preamble).
+                response_format=review_output_json_schema(strict=True),
             )
             _tally(usage2)
             if content2 is not None:
