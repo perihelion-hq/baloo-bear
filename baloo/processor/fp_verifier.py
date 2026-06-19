@@ -313,14 +313,21 @@ class FPVerifier:
         cost = meta.get("cost_usd", 0.0)
         model_used = meta.get("model", model_id)
 
+        verdict = parsed.get("verdict") if isinstance(parsed, dict) else None
+        reason = parsed.get("reason") if isinstance(parsed, dict) else None
+
+        # A valid verdict must be real|fp AND carry a non-empty reason. A drop
+        # ("fp") with no reason is malformed — never silently drop a finding on
+        # an unexplained verdict; fail open and record the error instead.
         if (
             not meta.get("is_error")
-            and isinstance(parsed, dict)
-            and parsed.get("verdict") in ("real", "fp")
+            and verdict in ("real", "fp")
+            and isinstance(reason, str)
+            and reason.strip()
         ):
             return comment, {
-                "verdict": parsed["verdict"],
-                "reason": parsed.get("reason", "no reason given"),
+                "verdict": verdict,
+                "reason": reason.strip(),
                 "cost_usd": cost,
                 "model": model_used,
                 "provider": provider,
@@ -331,10 +338,12 @@ class FPVerifier:
             error = meta.get("error") or "verification error"
         elif parsed is None:
             error = "empty response (possible tool-use abort)"
-        elif isinstance(parsed, dict):
+        elif not isinstance(parsed, dict):
+            error = "unparseable verdict"
+        elif verdict not in ("real", "fp"):
             error = "invalid verdict value"
         else:
-            error = "unparseable verdict"
+            error = "missing or empty reason"
         logger.warning(
             "FP verifier could not obtain a verdict for %s:%s (%s) — keeping",
             comment.path,

@@ -480,6 +480,44 @@ class TestFPVerifierSyntheticPath:
         assert result.rejected[0].reason == "uses parameterized query"
 
     @pytest.mark.asyncio
+    async def test_synthetic_fp_verdict_without_reason_fails_open(self):
+        """A drop verdict must carry a non-empty reason. {"verdict":"fp"} with no
+        reason is malformed — the finding must be KEPT (fail-open) and recorded
+        as an error, never silently dropped."""
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=({"verdict": "fp"}, _synthetic_meta()),
+        ):
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert len(result.rejected) == 0
+        assert len(result.verified) == 1
+        assert result.stats.errors == 1
+
+    @pytest.mark.asyncio
+    async def test_synthetic_blank_reason_fails_open(self):
+        """A whitespace-only reason is also malformed -> fail-open keep."""
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=({"verdict": "fp", "reason": "   "}, _synthetic_meta()),
+        ):
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert len(result.rejected) == 0
+        assert len(result.verified) == 1
+        assert result.stats.errors == 1
+
+    @pytest.mark.asyncio
     async def test_synthetic_real_verdict_keeps_finding(self):
         verifier = FPVerifier()
         comment = _make_comment()

@@ -62,7 +62,7 @@ All Baloo settings are environment variables. Set them in `.env`, pass them via 
 | Variable | Default | Description |
 |---|---|---|
 | `FP_VERIFICATION_ENABLED` | `true` | Enable LLM false-positive verification pass |
-| `FP_VERIFICATION_MODEL` | `haiku` | Model for verification |
+| `FP_VERIFICATION_MODEL` | `glm` | Model for verification (synthetic; anthropic models need a real `ANTHROPIC_API_KEY`) |
 | `FP_VERIFICATION_MAX_CONCURRENT` | `5` | Max parallel verification calls |
 | `FP_AUDIT_LOG_PATH` | `/var/log/baloo/fp-audit.jsonl` | Audit log path. Empty to disable |
 
