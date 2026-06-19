@@ -424,6 +424,13 @@ class PIAgentBase:
     stdin/stdout.  Only read-only tools are enabled.
     """
 
+    # Whether run_query's retry/finalize should enforce the review schema.
+    # Only the review agent (BalooAgent) emits review-shaped JSON; other
+    # consumers (FidelityAgent, FP verifier, thread agent, scope decider)
+    # return their own schemas and must NOT have their valid output nulled by
+    # the review-shape gate. Subclasses that review PRs set this True.
+    _enforce_review_shape: bool = False
+
     def __init__(self, options: PIAgentOptions):
         self.options = options
         self.agent_name = self.__class__.__name__
@@ -635,10 +642,15 @@ class PIAgentBase:
                     break
 
         # Retry when the agent produced no usable review: either nothing parsed,
-        # OR a valid-but-non-review-shaped object ({}, {"summary": ...}) that would
-        # otherwise fail closed with no recovery attempt (the json_schema finalize
-        # below only runs if this gate fires).
-        needs_retry = structured_output is None or not _is_review_shaped(structured_output)
+        # OR (review agents only) a valid-but-non-review-shaped object
+        # ({}, {"summary": ...}) that would otherwise fail closed with no
+        # recovery attempt (the json_schema finalize below only runs if this
+        # gate fires). The review-shape clause is gated on _enforce_review_shape
+        # so non-review consumers (fidelity, FP, thread, scope) keep their valid
+        # non-review output instead of having it nulled by the review repair.
+        needs_retry = structured_output is None or (
+            self._enforce_review_shape and not _is_review_shaped(structured_output)
+        )
         if needs_retry and result.assistant_text:
             logger.warning(
                 "%s: assistant response is not a usable review (parsed=%s, %d chars). Raw: %s...",
@@ -871,7 +883,8 @@ Serialized payload:
         # Attempt 2: re-review the diff directly when extraction found nothing.
         if parsed is None and original_query:
             logger.info(
-                "%s: extract retry yielded no review; re-reviewing diff via json_object",
+                "%s: extract retry yielded no review; re-reviewing diff via "
+                "strict json_schema(ReviewOutput)",
                 self.agent_name,
             )
             parsed2, content2, usage2, finish2 = await self._synthetic_chat_json(

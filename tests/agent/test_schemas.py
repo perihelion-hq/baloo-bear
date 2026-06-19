@@ -225,6 +225,20 @@ class TestReviewOutputJsonSchema:
         }
         assert set(summary["required"]) == set(summary["properties"].keys())
 
+    def test_review_output_json_schema_category_is_enum_constrained(self):
+        """Strict mode must constrain `category` to the FindingCategory values,
+        the same way `severity` is enumerated — otherwise the API accepts an
+        off-list category that _normalize_category silently downgrades to
+        Quality, which can demote a HIGH Security finding (bug_003)."""
+        from baloo.github.models import FindingCategory
+
+        finding = review_output_json_schema(strict=True)["json_schema"]["schema"]["properties"][
+            "findings"
+        ]["items"]
+        category = finding["properties"]["category"]
+        assert category["type"] == "string"
+        assert set(category["enum"]) == {c.value for c in FindingCategory}
+
     def test_review_output_json_schema_summary_matches_prompt_contract(self):
         """The strict schema must not forbid any summary field the prompt asks for."""
         from baloo.agent import prompts

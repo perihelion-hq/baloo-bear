@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 class BalooAgent(PIAgentBase):
     """Code review agent powered by PI."""
 
+    # Review output must be review-shaped; enable the run_query retry/finalize
+    # gate that repairs non-review-shaped JSON (see PIAgentBase.run_query).
+    _enforce_review_shape = True
+
     def __init__(self, model_override: str = None, cwd: str | None = None):
         """Initialize agent with options."""
         options = get_agent_options(model_override)
@@ -90,8 +94,14 @@ class BalooAgent(PIAgentBase):
             #  - a JSON retry was required but recovered ZERO findings (we cannot
             #    distinguish "genuinely clean" from "findings lost in a failed
             #    repair"; a genuine clean review parses on the first try).
+            # A length-truncated response cannot be trusted as a COMPLETE review
+            # even when the visible JSON is review-shaped with findings: the
+            # missing tail may hold the highest-severity findings. Schema-
+            # constrained decoding makes valid-but-incomplete JSON the likely
+            # truncation shape, so this gate must not depend on a parse failure.
+            truncated = metadata.get("finish_reason") == "length"
             retry_lost_findings = bool(metadata.get("json_retry")) and not comments
-            agent_had_error = (not review_shaped) or retry_lost_findings
+            agent_had_error = (not review_shaped) or retry_lost_findings or truncated
 
             if agent_had_error:
                 if not review_shaped:
@@ -104,6 +114,12 @@ class BalooAgent(PIAgentBase):
                         metadata.get("output_tokens"),
                         metadata.get("is_error"),
                     )
+                elif truncated:
+                    logger.warning(
+                        "Review hit the token ceiling (finish_reason=length, model: %s); "
+                        "failing closed — the truncated tail may hold higher-severity findings",
+                        metadata.get("model"),
+                    )
                 else:
                     logger.warning(
                         "JSON retry recovered zero findings (model: %s); failing "
@@ -113,7 +129,7 @@ class BalooAgent(PIAgentBase):
                 metadata["agent_error"] = True
                 if metadata.get("max_turns_reached"):
                     metadata["error_category"] = "max_turns_reached"
-                elif metadata.get("finish_reason") == "length":
+                elif truncated:
                     # Output hit the token ceiling: the (truncated) JSON cannot be
                     # trusted as a complete review. Mark it explicitly; never approve.
                     metadata["error_category"] = "truncated"

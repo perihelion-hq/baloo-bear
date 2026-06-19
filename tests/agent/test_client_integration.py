@@ -196,6 +196,39 @@ class TestBalooAgentErrorHandling:
         assert result.approve is False
 
     @pytest.mark.asyncio
+    async def test_truncated_review_shaped_with_findings_fails_closed(self, sample_pr_context):
+        """A review-shaped result WITH findings but finish_reason=='length' is a
+        truncated review: the missing tail may hold the highest-severity findings,
+        so it must fail closed as 'truncated' and never approve — even though the
+        visible (lower-severity) findings parse cleanly (merged_bug_001)."""
+        truncated_review = {
+            "findings": [
+                {
+                    "file": "a.py",
+                    "line": 3,
+                    "severity": "MEDIUM",
+                    "category": "Quality",
+                    "title": "Minor style issue",
+                    "description": "a visible, non-blocking finding before truncation",
+                }
+            ],
+            "summary": {"total_issues": 1},
+        }
+        with patch.object(
+            BalooAgent,
+            "_run_with_fallback",
+            new=AsyncMock(
+                return_value=(truncated_review, {"finish_reason": "length", "model": "glm"})
+            ),
+        ):
+            agent = BalooAgent()
+            result = await agent.review_pr(sample_pr_context)
+
+        assert result.metadata.get("agent_error") is True
+        assert result.metadata.get("error_category") == "truncated"
+        assert result.approve is False
+
+    @pytest.mark.asyncio
     async def test_review_pr_normalizes_top_level_findings_array(self, sample_pr_context):
         """GLM-5.2 sometimes returns findings as a top-level JSON array instead
         of {"findings":[...]}. That output must be NORMALIZED into real comments

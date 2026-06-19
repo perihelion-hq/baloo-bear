@@ -216,7 +216,10 @@ def review_output_json_schema(strict: bool = True) -> dict:
             "file": {"type": "string"},
             "line": {"type": "integer"},
             "severity": sev,
-            "category": {"type": "string"},
+            "category": {
+                "type": "string",
+                "enum": [c.value for c in FindingCategory],
+            },
             "title": {"type": "string"},
             "description": {"type": "string"},
             "impact": str_or_null,
