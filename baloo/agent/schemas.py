@@ -109,6 +109,12 @@ class ReviewOutput(BaseModel):
     @classmethod
     def model_validate(cls, obj, **kwargs):
         """Override to coerce common agent response quirks before validation."""
+        # GLM-5.2 sometimes returns the findings as a bare top-level array
+        # (``[ {finding}, ... ]``) instead of the ``{"findings": [...]}`` object.
+        # Wrap it rather than raising a ValidationError that would crash the
+        # review into a fail-closed agent error.
+        if isinstance(obj, list):
+            obj = {"findings": obj, "summary": {}}
         if isinstance(obj, dict):
             raw_summary = obj.get("summary")
             # If the agent returned a string instead of a dict, replace with default

@@ -10,7 +10,27 @@ from baloo.agent.pi_runtime import (
     PIAgentBase,
     PIAgentOptions,
     _extract_json_from_text,
+    _is_review_shaped,
 )
+
+
+class TestIsReviewShaped:
+    """A usable review is either a {findings:[...]} object or a top-level
+    findings array (GLM sometimes emits the latter)."""
+
+    def test_object_with_findings_list(self):
+        assert _is_review_shaped({"findings": [], "summary": {}}) is True
+
+    def test_top_level_list(self):
+        assert _is_review_shaped([{"file": "a.py"}]) is True
+
+    def test_dict_without_findings_list(self):
+        assert _is_review_shaped({"summary": {}}) is False
+        assert _is_review_shaped({}) is False
+
+    def test_none_and_scalars(self):
+        assert _is_review_shaped(None) is False
+        assert _is_review_shaped("text") is False
 
 
 class TestExtractJsonFromText:

@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from baloo.agent.config import get_agent_options
-from baloo.agent.pi_runtime import PIAgentBase
+from baloo.agent.pi_runtime import PIAgentBase, _is_review_shaped
 from baloo.agent.prompts import (
     build_pr_review_prompt,
 )
@@ -74,24 +74,31 @@ class BalooAgent(PIAgentBase):
                 review_query, review_logger=review_logger
             )
 
-            # Convert structured output to review comments
+            # Convert structured output to review comments. Only a review-shaped
+            # result (a {"findings": [...]} object, or a top-level findings array
+            # that ReviewOutput wraps) yields comments. A valid-but-non-review
+            # value (None, prose, or an object lacking a findings list such as {}
+            # or {"summary": ...}) must NOT silently become a clean approval —
+            # it is treated as an agent error and fails closed.
             comments = []
-            if structured_data is not None:
+            review_shaped = _is_review_shaped(structured_data)
+            if review_shaped:
                 comments = findings_to_comments(structured_data)
 
-            # Fail closed. A JSON retry means the agent's primary output was
-            # unparseable; recovering ZERO findings from that is not trustworthy
-            # enough to bless a clean approval — we cannot distinguish "genuinely
-            # clean" from "findings lost in a failed repair". (A genuine clean
-            # review parses on the first try, so json_retry is unset there.)
+            # Fail closed in two cases:
+            #  - the agent never produced a usable review shape; or
+            #  - a JSON retry was required but recovered ZERO findings (we cannot
+            #    distinguish "genuinely clean" from "findings lost in a failed
+            #    repair"; a genuine clean review parses on the first try).
             retry_lost_findings = bool(metadata.get("json_retry")) and not comments
-            agent_had_error = structured_data is None or retry_lost_findings
+            agent_had_error = (not review_shaped) or retry_lost_findings
 
             if agent_had_error:
-                if structured_data is None:
+                if not review_shaped:
                     logger.warning(
-                        "No structured output received from agent "
-                        "(model: %s, turns: %s, tokens_out: %s, is_error: %s)",
+                        "Agent output was not a usable review (type: %s, model: %s, "
+                        "turns: %s, tokens_out: %s, is_error: %s)",
+                        type(structured_data).__name__,
                         metadata.get("model"),
                         metadata.get("num_turns"),
                         metadata.get("output_tokens"),

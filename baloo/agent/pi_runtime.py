@@ -107,7 +107,11 @@ def _extract_json_from_text(text: str) -> dict | None:
 
 
 def _is_review_shaped(obj: Any) -> bool:
-    """True if a parsed object looks like a review (has a ``findings`` list).
+    """True if a parsed object is a usable review.
+
+    Usable means either a ``{"findings": [...]}`` object OR a top-level findings
+    array ``[ {finding}, ... ]`` (GLM-5.2 sometimes returns the bare array; it is
+    recoverable — ReviewOutput.model_validate wraps it).
 
     ``response_format=json_object`` only guarantees *valid* JSON, not a
     schema-correct review. A repair that returns valid-but-non-review JSON — an
@@ -116,6 +120,8 @@ def _is_review_shaped(obj: Any) -> bool:
     Otherwise the empty result degrades into a false clean approval (the GLM
     prose-vs-JSON production failure).
     """
+    if isinstance(obj, list):
+        return True
     return isinstance(obj, dict) and isinstance(obj.get("findings"), list)
 
 

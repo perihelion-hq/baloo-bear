@@ -180,6 +180,53 @@ class TestBalooAgentErrorHandling:
         assert result.metadata["error_category"] == "max_turns_reached"
 
     @pytest.mark.asyncio
+    async def test_review_pr_normalizes_top_level_findings_array(self, sample_pr_context):
+        """GLM-5.2 sometimes returns findings as a top-level JSON array instead
+        of {"findings":[...]}. That output must be NORMALIZED into real comments
+        end-to-end — not discarded into a fail-closed agent_error (the #677 bug).
+        """
+        array_output = [
+            {
+                "file": "a.py",
+                "line": 3,
+                "severity": "HIGH",
+                "category": "Security",
+                "title": "Command injection",
+                "description": "unsanitized input flows into os.system",
+            }
+        ]
+        with patch.object(
+            BalooAgent,
+            "_run_with_fallback",
+            new=AsyncMock(return_value=(array_output, {"model": "glm", "output_tokens": 100})),
+        ):
+            agent = BalooAgent()
+            result = await agent.review_pr(sample_pr_context)
+
+        assert result.metadata.get("agent_error") is not True
+        assert len(result.comments) == 1
+        assert result.comments[0].path == "a.py"
+        assert result.request_changes is True  # HIGH security -> request changes
+        assert result.approve is False
+
+    @pytest.mark.asyncio
+    async def test_review_pr_non_review_dict_fails_closed(self, sample_pr_context):
+        """A valid JSON object that is NOT a review (no findings list) must fail
+        closed, not silently approve with zero comments."""
+        with patch.object(
+            BalooAgent,
+            "_run_with_fallback",
+            new=AsyncMock(return_value=({"summary": {"total_issues": 0}}, {"model": "glm"})),
+        ):
+            agent = BalooAgent()
+            result = await agent.review_pr(sample_pr_context)
+
+        assert result.comments == []
+        assert result.metadata["agent_error"] is True
+        assert result.approve is False
+        assert "Approve. Approve. Approve." not in result.summary
+
+    @pytest.mark.asyncio
     async def test_json_retry_with_zero_findings_fails_closed(self, sample_pr_context):
         """A JSON retry means the agent's primary output was unparseable. Recovering
         ZERO findings from that is not trustworthy enough to bless a clean approval —
