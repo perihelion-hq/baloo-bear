@@ -23,7 +23,7 @@ from typing import Any
 import httpx
 
 from baloo.agent.costs import normalize_usage
-from baloo.agent.http_retry import post_with_retry_on_429
+from baloo.agent.http_retry import post_chat_with_format_fallback
 from baloo.agent.schemas import review_output_json_schema
 from baloo.config.settings import get_settings
 
@@ -780,21 +780,21 @@ Serialized payload:
         otherwise None (so the caller can escalate). Never raises —
         transport/HTTP errors return ``(None, None, {}, None)``.
         """
-        body = {
+        base_body = {
             "model": self.options.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "response_format": response_format or {"type": "json_object"},
         }
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await post_with_retry_on_429(
+                resp = await post_chat_with_format_fallback(
                     client,
                     f"{base_url}/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}"},
-                    json=body,
+                    base_body=base_body,
+                    response_format=response_format or {"type": "json_object"},
                     label=self.agent_name,
                 )
                 data = resp.json()
