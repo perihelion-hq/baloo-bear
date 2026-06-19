@@ -633,10 +633,16 @@ class PIAgentBase:
                     metadata["recovered_from_earlier_turn"] = True
                     break
 
-        if structured_output is None and result.assistant_text:
+        # Retry when the agent produced no usable review: either nothing parsed,
+        # OR a valid-but-non-review-shaped object ({}, {"summary": ...}) that would
+        # otherwise fail closed with no recovery attempt (the json_schema finalize
+        # below only runs if this gate fires).
+        needs_retry = structured_output is None or not _is_review_shaped(structured_output)
+        if needs_retry and result.assistant_text:
             logger.warning(
-                "%s: could not parse JSON from assistant response (%d chars). Raw text: %s...",
+                "%s: assistant response is not a usable review (parsed=%s, %d chars). Raw: %s...",
                 self.agent_name,
+                type(structured_output).__name__,
                 len(result.assistant_text),
                 result.assistant_text[:1000].replace("\n", " "),
             )
