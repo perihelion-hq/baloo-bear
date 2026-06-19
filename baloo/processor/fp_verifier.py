@@ -19,6 +19,7 @@ from pathlib import Path
 
 from baloo.agent.config import get_agent_options
 from baloo.agent.pi_runtime import PIAgentBase, PIAgentOptions
+from baloo.agent.synthetic_json import synthetic_json_completion
 from baloo.config.settings import get_settings
 from baloo.github.models import PRContext, ReviewComment
 from baloo.processor.fp_prompts import (
@@ -154,6 +155,8 @@ class FPVerifier:
                     model=self.model,
                     cost_usd=0.0,
                     pr_context=pr_context,
+                    provider=None,
+                    error=str(res),
                 )
                 continue
 
@@ -162,6 +165,13 @@ class FPVerifier:
             reason = verdict_data.get("reason", "no reason given")
             cost = verdict_data.get("cost_usd", 0.0)
             model_used = verdict_data.get("model", self.model)
+            provider_used = verdict_data.get("provider")
+            # A non-None `error` means the verdict could not be obtained and the
+            # finding was kept fail-open; count it under `errors` for parity
+            # with the exception path so a systemic failure is observable.
+            verdict_error = verdict_data.get("error")
+            if verdict_error:
+                stats.errors += 1
 
             stats.total_cost_usd += cost
 
@@ -193,6 +203,8 @@ class FPVerifier:
                 model=model_used,
                 cost_usd=cost,
                 pr_context=pr_context,
+                provider=provider_used,
+                error=verdict_error,
             )
 
         stats.duration_seconds = time.time() - start_time
@@ -232,7 +244,27 @@ class FPVerifier:
             pr_commit_messages=pr_context.metadata.commit_messages or None,
         )
 
-        # Get agent options for the cheap model
+        # Resolve the configured provider/model. The default (glm/synthetic)
+        # runs the verdict over the always-keyed Synthetic direct-HTTP
+        # json_object path; non-synthetic models fall back to the pi runtime.
+        opts = get_agent_options(self.model, thinking_level="off")
+        provider = opts.provider
+        model_id = opts.model
+
+        if provider == "synthetic":
+            # Synthetic direct-HTTP path: response_format=json_object forces a
+            # JSON object out of GLM-5.2. The helper never raises — transport
+            # or parse failures arrive as parsed=None + meta.is_error.
+            parsed, meta = await synthetic_json_completion(
+                model=model_id,
+                system_prompt=FP_SYSTEM_PROMPT,
+                user_prompt=prompt,
+                label="FPVerifier",
+            )
+            return self._build_verdict(comment, parsed, meta, provider, model_id)
+
+        # Non-synthetic fallback (e.g. anthropic): keep the existing pi
+        # runtime path that drives a no-tools single-turn query.
         options = get_agent_options(
             model=self.model,
             thinking_level="off",
@@ -249,44 +281,6 @@ class FPVerifier:
 
         try:
             structured, metadata = await agent.run_query(prompt)
-
-            cost = metadata.get("cost_usd", 0.0)
-            model_used = metadata.get("model", self.model)
-
-            if structured and isinstance(structured, dict):
-                verdict = structured.get("verdict", "real")
-                reason = structured.get("reason", "no reason given")
-                # Normalize verdict
-                if verdict not in ("real", "fp"):
-                    verdict = "real"
-                return comment, {
-                    "verdict": verdict,
-                    "reason": reason,
-                    "cost_usd": cost,
-                    "model": model_used,
-                }
-
-            # Could not parse response — fail-open.  Distinguish the
-            # common "empty response" case (usually a tool-use cycle that
-            # hit max_turns) from a genuine format error so the audit log
-            # is actionable.
-            if not structured:
-                reason = "empty response (possible tool-use abort)"
-            else:
-                reason = "unparseable response"
-            logger.warning(
-                "FP verifier got %s for %s:%s — keeping",
-                reason,
-                comment.path,
-                comment.line,
-            )
-            return comment, {
-                "verdict": "real",
-                "reason": reason,
-                "cost_usd": cost,
-                "model": model_used,
-            }
-
         except Exception as exc:
             logger.warning(
                 "FP verification failed for %s:%s: %s",
@@ -296,6 +290,66 @@ class FPVerifier:
             )
             raise
 
+        # The pi runtime never signals is_error in metadata; reuse the shared
+        # verdict builder which fails open on a missing/invalid verdict shape.
+        return self._build_verdict(comment, structured, metadata, provider, model_id)
+
+    def _build_verdict(
+        self,
+        comment: ReviewComment,
+        parsed: object,
+        meta: dict,
+        provider: str,
+        model_id: str,
+    ) -> tuple[ReviewComment, dict]:
+        """Normalize a model response into a verdict dict (fail-open).
+
+        A valid verdict requires ``parsed`` to be a dict whose ``verdict`` is
+        ``"real"`` or ``"fp"`` and ``meta`` to not signal an error. Anything
+        else is kept (fail-open) but the verdict dict carries an ``error``
+        category and provider/model so a systemic failure (e.g. the
+        placeholder-key bug) stays observable in the audit log.
+        """
+        cost = meta.get("cost_usd", 0.0)
+        model_used = meta.get("model", model_id)
+
+        if (
+            not meta.get("is_error")
+            and isinstance(parsed, dict)
+            and parsed.get("verdict") in ("real", "fp")
+        ):
+            return comment, {
+                "verdict": parsed["verdict"],
+                "reason": parsed.get("reason", "no reason given"),
+                "cost_usd": cost,
+                "model": model_used,
+                "provider": provider,
+            }
+
+        # Fail-open: keep the finding, but surface why the verdict was unusable.
+        if meta.get("is_error"):
+            error = meta.get("error") or "verification error"
+        elif parsed is None:
+            error = "empty response (possible tool-use abort)"
+        elif isinstance(parsed, dict):
+            error = "invalid verdict value"
+        else:
+            error = "unparseable verdict"
+        logger.warning(
+            "FP verifier could not obtain a verdict for %s:%s (%s) — keeping",
+            comment.path,
+            comment.line,
+            error,
+        )
+        return comment, {
+            "verdict": "real",
+            "reason": error,
+            "error": error,
+            "cost_usd": cost,
+            "model": model_used,
+            "provider": provider,
+        }
+
     def _write_audit_entry(
         self,
         comment: ReviewComment,
@@ -304,8 +358,16 @@ class FPVerifier:
         model: str,
         cost_usd: float,
         pr_context: PRContext,
+        provider: str | None = None,
+        error: str | None = None,
     ) -> None:
-        """Append a JSONL audit log entry."""
+        """Append a JSONL audit log entry.
+
+        ``provider`` records which lane produced the verdict; ``error`` carries
+        a short failure category when the verdict could not be obtained (the
+        finding was then kept fail-open). Together they make a systemic failure
+        such as the placeholder-key bug observable from the audit log.
+        """
         if not self.audit_log_path:
             return
 
@@ -324,9 +386,12 @@ class FPVerifier:
             "verdict": verdict,
             "reason": reason,
             "model": model,
+            "provider": provider,
             "review_model": get_settings().agent_model,
             "cost_usd": cost_usd,
         }
+        if error:
+            entry["error"] = error
 
         try:
             path = Path(self.audit_log_path)

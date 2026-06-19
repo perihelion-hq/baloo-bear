@@ -150,8 +150,12 @@ class Settings(BaseSettings):
         description="Enable LLM-powered false-positive verification pass",
     )
     fp_verification_model: str = Field(
-        default="haiku",
-        description="Model for FP verification (short name or provider/model)",
+        default="glm",
+        description=(
+            "Model for FP verification (short name or provider/model). Defaults to "
+            "glm (synthetic) so the verdict runs over the always-keyed Synthetic "
+            "path; anthropic models require a real ANTHROPIC_API_KEY."
+        ),
     )
     fp_verification_max_concurrent: int = Field(
         default=5,
