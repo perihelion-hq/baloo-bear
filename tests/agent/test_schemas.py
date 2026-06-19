@@ -7,6 +7,7 @@ from baloo.agent.schemas import (
     _normalize_category,
     enforce_severity,
     findings_to_comments,
+    review_output_json_schema,
     review_output_schema,
 )
 from baloo.fidelity.models import (
@@ -190,6 +191,62 @@ class TestReviewOutputSchema:
         props = schema["schema"]["properties"]
         assert "findings" in props
         assert "summary" in props
+
+
+class TestReviewOutputJsonSchema:
+    """Tests for the strict json_schema envelope builder (response_format)."""
+
+    def test_review_output_json_schema_strict_envelope(self):
+        rf = review_output_json_schema(strict=True)
+        assert rf["type"] == "json_schema"
+        js = rf["json_schema"]
+        assert js["name"] == "review_output"
+        assert js["strict"] is True
+        schema = js["schema"]
+        assert schema["additionalProperties"] is False
+        assert set(schema["required"]) == set(schema["properties"].keys())  # strict: all required
+        finding = schema["properties"]["findings"]["items"]
+        assert finding["additionalProperties"] is False
+        assert set(finding["required"]) == set(finding["properties"].keys())
+        # optional fields are nullable in strict mode
+        assert "null" in finding["properties"]["recommendation"]["type"]
+        # summary mirrors prompts.REVIEW_JSON_RESPONSE_SCHEMA — all 8 documented keys
+        summary = schema["properties"]["summary"]
+        assert summary["additionalProperties"] is False
+        assert set(summary["properties"].keys()) == {
+            "total_issues",
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "files_examined",
+            "patterns_searched",
+            "positive_observations",
+        }
+        assert set(summary["required"]) == set(summary["properties"].keys())
+
+    def test_review_output_json_schema_summary_matches_prompt_contract(self):
+        """The strict schema must not forbid any summary field the prompt asks for."""
+        from baloo.agent import prompts
+
+        summary_props = set(
+            review_output_json_schema(strict=True)["json_schema"]["schema"]["properties"][
+                "summary"
+            ]["properties"].keys()
+        )
+        # Keys the live prompt documents under "summary" (prompts.REVIEW_JSON_RESPONSE_SCHEMA).
+        for key in (
+            "total_issues",
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "files_examined",
+            "patterns_searched",
+            "positive_observations",
+        ):
+            assert key in prompts.REVIEW_JSON_RESPONSE_SCHEMA
+            assert key in summary_props
 
 
 class TestFindingsToComments:

@@ -194,8 +194,94 @@ def enforce_severity(finding: ReviewFinding) -> str:
     return "MEDIUM"
 
 
+def review_output_json_schema(strict: bool = True) -> dict:
+    """Return an OpenAI/Synthetic ``response_format=json_schema`` envelope for ReviewOutput.
+
+    In strict mode every property is listed in ``required`` and optional finding
+    fields are nullable (``["string", "null"]``) — OpenAI/Synthetic strict
+    structured outputs forbid truly-optional fields.
+
+    The ``findings`` items and ``summary`` keys mirror
+    ``prompts.REVIEW_JSON_RESPONSE_SCHEMA``/``ReviewSummary`` exactly, so the
+    prompt and the strict schema describe one contract: with
+    ``additionalProperties: false``, listing only a subset of the summary keys
+    the prompt asks for would tell the model two incompatible contracts.
+    """
+    sev = {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]}
+    str_or_null = {"type": ["string", "null"]}
+    finding = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "file": {"type": "string"},
+            "line": {"type": "integer"},
+            "severity": sev,
+            "category": {"type": "string"},
+            "title": {"type": "string"},
+            "description": {"type": "string"},
+            "impact": str_or_null,
+            "recommendation": str_or_null,
+            "code_example": str_or_null,
+        },
+        "required": [
+            "file",
+            "line",
+            "severity",
+            "category",
+            "title",
+            "description",
+            "impact",
+            "recommendation",
+            "code_example",
+        ],
+    }
+    # summary mirrors prompts.REVIEW_JSON_RESPONSE_SCHEMA: counts are integers,
+    # patterns_searched/positive_observations are string arrays. All eight keys
+    # are required (strict mode) so the prompt and schema agree.
+    str_array = {"type": "array", "items": {"type": "string"}}
+    summary = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "total_issues": {"type": "integer"},
+            "critical": {"type": "integer"},
+            "high": {"type": "integer"},
+            "medium": {"type": "integer"},
+            "low": {"type": "integer"},
+            "files_examined": {"type": "integer"},
+            "patterns_searched": str_array,
+            "positive_observations": str_array,
+        },
+        "required": [
+            "total_issues",
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "files_examined",
+            "patterns_searched",
+            "positive_observations",
+        ],
+    }
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"findings": {"type": "array", "items": finding}, "summary": summary},
+        "required": ["findings", "summary"],
+    }
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": "review_output", "strict": strict, "schema": schema},
+    }
+
+
 def review_output_schema() -> dict:
-    """Return the JSON schema for review output validation."""
+    """Return the JSON schema for review output validation.
+
+    NOTE: superseded by ``review_output_json_schema`` (the correct
+    ``response_format`` envelope). Retained only for back-compat; currently
+    unused in production.
+    """
     return {"type": "json_schema", "schema": ReviewOutput.model_json_schema()}
 
 
