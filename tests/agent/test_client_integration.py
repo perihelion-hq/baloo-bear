@@ -180,6 +180,35 @@ class TestBalooAgentErrorHandling:
         assert result.metadata["error_category"] == "max_turns_reached"
 
     @pytest.mark.asyncio
+    async def test_json_retry_with_zero_findings_fails_closed(self, sample_pr_context):
+        """A JSON retry means the agent's primary output was unparseable. Recovering
+        ZERO findings from that is not trustworthy enough to bless a clean approval —
+        this is exactly what false-approved a real eval() RCE in production (GLM
+        emitted prose, the json_object retry returned an empty/echo object, and the
+        empty result degraded into 'No issue. Code good.').
+        """
+        with patch.object(
+            BalooAgent,
+            "_run_with_fallback",
+            new=AsyncMock(
+                return_value=(
+                    {"findings": [], "summary": {"total_issues": 0}},
+                    {"json_retry": True, "model": "glm", "output_tokens": 120},
+                )
+            ),
+        ):
+            agent = BalooAgent()
+            result = await agent.review_pr(sample_pr_context)
+
+        assert result.comments == []
+        assert result.metadata["agent_error"] is True
+        assert result.metadata["error_category"] == "json_parse_error"
+        assert result.approve is False
+        assert result.request_changes is False
+        # Must not degrade into a clean approval
+        assert "Approve. Approve. Approve." not in result.summary
+
+    @pytest.mark.asyncio
     async def test_review_pr_handles_error_stop_reason(self, sample_pr_context):
         """Test handling of error stop reason from PI."""
         events = _make_pi_events(None, is_error=True)

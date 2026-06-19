@@ -642,6 +642,55 @@ class TestPIAgentBaseRunQuery:
         assert raw is not None
 
     @pytest.mark.asyncio
+    async def test_synthetic_retry_rejects_non_review_shaped_repair(self):
+        """A json_object 'repair' that is valid JSON but NOT a review (no findings
+        list — e.g. an echo of the inert payload, or an empty object) must be
+        rejected as a failed retry (parsed is None), never propagated as a usable
+        result. response_format=json_object only guarantees valid JSON, not a
+        schema-correct review; treating such output as success is what turned a
+        prose review of a real eval() RCE into a false clean approval in production.
+        """
+
+        def _mock_httpx_client(response_json: dict):
+            resp = MagicMock()
+            resp.json = MagicMock(return_value=response_json)
+            resp.raise_for_status = MagicMock()
+            client = AsyncMock()
+            client.post = AsyncMock(return_value=resp)
+            acm = MagicMock()
+            acm.__aenter__ = AsyncMock(return_value=client)
+            acm.__aexit__ = AsyncMock(return_value=False)
+            return acm, client
+
+        # GLM, forced to json_object on reasoning-prose, returns valid JSON that is
+        # not a review: an echo wrapper of the inert payload (no findings list).
+        response_json = {
+            "choices": [
+                {
+                    "message": {
+                        "content": '{"malformed_response": "Now let me compile my findings... eval() is an RCE"}'
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 700, "completion_tokens": 120},
+        }
+        acm, _ = _mock_httpx_client(response_json)
+
+        agent = PIAgentBase(PIAgentOptions(provider="synthetic", model="hf:zai-org/GLM-5.2"))
+
+        with patch("baloo.agent.pi_runtime.httpx.AsyncClient", return_value=acm):
+            parsed, metadata, raw = await agent._retry_json_synthetic(
+                raw_text="Now let me compile my complete findings into the final review report..."
+            )
+
+        # Not a review shape -> failed retry. Metadata/raw still returned so the
+        # caller accumulates tokens and logs json_retry_failed.
+        assert parsed is None
+        assert metadata is not None
+        assert metadata["is_error"] is True
+        assert raw is not None
+
+    @pytest.mark.asyncio
     async def test_synthetic_retry_recovers_from_prose_in_run_query(self):
         """End-to-end: GLM emits prose, run_query recovers findings via the
         direct Synthetic retry (no second pi subprocess)."""

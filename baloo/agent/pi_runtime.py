@@ -106,6 +106,19 @@ def _extract_json_from_text(text: str) -> dict | None:
     return None
 
 
+def _is_review_shaped(obj: Any) -> bool:
+    """True if a parsed object looks like a review (has a ``findings`` list).
+
+    ``response_format=json_object`` only guarantees *valid* JSON, not a
+    schema-correct review. A repair that returns valid-but-non-review JSON — an
+    echo wrapper of the inert payload (``{"malformed_response": ...}``) or a bare
+    ``{}`` — must be treated as a *failed* retry, never a usable result.
+    Otherwise the empty result degrades into a false clean approval (the GLM
+    prose-vs-JSON production failure).
+    """
+    return isinstance(obj, dict) and isinstance(obj.get("findings"), list)
+
+
 def _load_json_with_repair(text: str) -> Any | None:
     """Load JSON, then retry after repairing common string-literal mistakes."""
     try:
@@ -736,6 +749,14 @@ Serialized payload:
 
             content = data["choices"][0]["message"]["content"]
             parsed = _extract_json_from_text(content)
+            if parsed is not None and not _is_review_shaped(parsed):
+                logger.warning(
+                    "%s: synthetic JSON retry returned non-review-shaped JSON "
+                    "(keys=%s); treating as a failed retry",
+                    self.agent_name,
+                    list(parsed.keys()),
+                )
+                parsed = None
 
             usage = data.get("usage") or {}
             reasoning_tokens = (usage.get("completion_tokens_details") or {}).get(
@@ -761,7 +782,7 @@ Serialized payload:
                 logger.info("%s: synthetic JSON retry succeeded", self.agent_name)
             else:
                 logger.warning(
-                    "%s: synthetic JSON retry returned unparseable content", self.agent_name
+                    "%s: synthetic JSON retry did not recover a usable review", self.agent_name
                 )
             return parsed, metadata, content
 
@@ -850,6 +871,14 @@ Serialized payload:
                     await proc.wait()
 
             parsed = _extract_json_from_text(result.assistant_text)
+            if parsed is not None and not _is_review_shaped(parsed):
+                logger.warning(
+                    "%s: JSON retry returned non-review-shaped JSON (keys=%s); "
+                    "treating as a failed retry",
+                    self.agent_name,
+                    list(parsed.keys()),
+                )
+                parsed = None
             if parsed is not None:
                 logger.info(
                     "%s: JSON retry succeeded (cost: $%.4f)",
@@ -857,7 +886,7 @@ Serialized payload:
                     result.cost_usd,
                 )
             else:
-                logger.warning("%s: JSON retry also failed to produce valid JSON", self.agent_name)
+                logger.warning("%s: JSON retry did not recover a usable review", self.agent_name)
 
             return parsed, self._build_metadata(result), result.assistant_text
 

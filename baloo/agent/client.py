@@ -78,29 +78,47 @@ class BalooAgent(PIAgentBase):
             comments = []
             if structured_data is not None:
                 comments = findings_to_comments(structured_data)
-            else:
-                logger.warning(
-                    "No structured output received from agent "
-                    "(model: %s, turns: %s, tokens_out: %s, is_error: %s)",
-                    metadata.get("model"),
-                    metadata.get("num_turns"),
-                    metadata.get("output_tokens"),
-                    metadata.get("is_error"),
-                )
+
+            # Fail closed. A JSON retry means the agent's primary output was
+            # unparseable; recovering ZERO findings from that is not trustworthy
+            # enough to bless a clean approval — we cannot distinguish "genuinely
+            # clean" from "findings lost in a failed repair". (A genuine clean
+            # review parses on the first try, so json_retry is unset there.)
+            retry_lost_findings = bool(metadata.get("json_retry")) and not comments
+            agent_had_error = structured_data is None or retry_lost_findings
+
+            if agent_had_error:
+                if structured_data is None:
+                    logger.warning(
+                        "No structured output received from agent "
+                        "(model: %s, turns: %s, tokens_out: %s, is_error: %s)",
+                        metadata.get("model"),
+                        metadata.get("num_turns"),
+                        metadata.get("output_tokens"),
+                        metadata.get("is_error"),
+                    )
+                else:
+                    logger.warning(
+                        "JSON retry recovered zero findings (model: %s); failing "
+                        "closed to avoid a false clean approval",
+                        metadata.get("model"),
+                    )
                 metadata["agent_error"] = True
                 if metadata.get("max_turns_reached"):
                     metadata["error_category"] = "max_turns_reached"
+                elif retry_lost_findings:
+                    metadata["error_category"] = metadata.get("error_category", "json_parse_error")
                 else:
                     metadata["error_category"] = metadata.get("error_category", "no_output")
 
             # Generate summary using shared formatter
             summary = CommentFormatter.format_summary(comments, metadata)
 
-            # Make approval decision using centralized engine. A None
-            # structured_data means the agent never produced usable output —
-            # that must not degrade into a clean approval.
+            # Make approval decision using centralized engine. agent_had_error
+            # covers both "no usable output at all" and "a retry recovered zero
+            # findings" — neither may degrade into a clean approval.
             approve, request_changes = DecisionEngine.make_decision(
-                comments, agent_had_error=structured_data is None
+                comments, agent_had_error=agent_had_error
             )
 
             return ReviewResult(
