@@ -10,7 +10,52 @@ from baloo.agent.pi_runtime import (
     PIAgentBase,
     PIAgentOptions,
     _extract_json_from_text,
+    _is_review_shaped,
 )
+
+
+class TestIsReviewShaped:
+    """A usable review is either a {findings:[...]} object or a top-level
+    findings array (GLM sometimes emits the latter)."""
+
+    def test_object_with_findings_list(self):
+        assert _is_review_shaped({"findings": [], "summary": {}}) is True
+        assert _is_review_shaped({"findings": [{"file": "a.py"}], "summary": {}}) is True
+
+    def test_top_level_list_of_finding_like_dicts(self):
+        assert _is_review_shaped([{"file": "a.py"}]) is True
+        assert _is_review_shaped([{"title": "X"}, {"description": "Y"}]) is True
+
+    def test_empty_list_is_empty_review(self):
+        # a bare empty array == "no findings", same as {"findings": []}
+        assert _is_review_shaped([]) is True
+
+    def test_list_of_non_finding_dicts_is_rejected(self):
+        # A non-review array must NOT be coerced into a bogus "unknown:1"
+        # finding — it is not review-shaped and must fail closed.
+        assert _is_review_shaped([{"foo": "bar"}]) is False
+        assert _is_review_shaped([{"foo": "bar"}, {"file": "a.py"}]) is False
+        assert _is_review_shaped(["just a string"]) is False
+        assert _is_review_shaped([1, 2, 3]) is False
+
+    def test_findings_list_with_non_finding_dicts_is_rejected(self):
+        # The envelope form must use the same item-level guard as a bare
+        # findings array; otherwise {"findings": [{"foo": "bar"}]} becomes a
+        # bogus default finding.
+        assert _is_review_shaped({"findings": [{"foo": "bar"}], "summary": {}}) is False
+        assert (
+            _is_review_shaped({"findings": [{"foo": "bar"}, {"file": "a.py"}], "summary": {}})
+            is False
+        )
+        assert _is_review_shaped({"findings": ["just a string"], "summary": {}}) is False
+
+    def test_dict_without_findings_list(self):
+        assert _is_review_shaped({"summary": {}}) is False
+        assert _is_review_shaped({}) is False
+
+    def test_none_and_scalars(self):
+        assert _is_review_shaped(None) is False
+        assert _is_review_shaped("text") is False
 
 
 class TestExtractJsonFromText:
@@ -613,9 +658,7 @@ class TestPIAgentBaseRunQuery:
         agent = PIAgentBase(PIAgentOptions(provider="synthetic", model="hf:zai-org/GLM-5.2"))
 
         with patch("baloo.agent.pi_runtime.httpx.AsyncClient", return_value=acm):
-            with patch(
-                "baloo.agent.pi_runtime.asyncio.create_subprocess_exec"
-            ) as mock_exec:
+            with patch("baloo.agent.pi_runtime.asyncio.create_subprocess_exec") as mock_exec:
                 parsed, metadata, raw = await agent._retry_json(
                     raw_text="Based on my review, here are my findings: ...",
                     proc_cwd=None,

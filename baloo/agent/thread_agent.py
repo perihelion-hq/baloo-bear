@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from baloo.agent.config import get_agent_options
 from baloo.agent.pi_runtime import PIAgentBase
+from baloo.agent.synthetic_json import synthetic_json_completion
 from baloo.agent.thread_prompts import THREAD_AGENT_SYSTEM_PROMPT, build_thread_prompt
 from baloo.config.settings import get_settings
 from baloo.github.models import DiscussionComment
@@ -109,7 +110,15 @@ class ThreadAgent:
         )
 
     async def _run_query(self, prompt: str) -> tuple[dict | None, dict]:
-        """Run the PI agent query. Separated for testability."""
+        """Run the structured-JSON query. Separated for testability.
+
+        This is a no-tools single-shot structured-JSON call. The pi RPC path
+        cannot force ``response_format``, so when the resolved provider is
+        ``synthetic`` we route through :func:`synthetic_json_completion`, which
+        constrains the model to emit a JSON object. Other providers keep the
+        existing pi ``run_query`` path. Both branches return the same
+        ``(structured_dict_or_None, metadata)`` contract the caller expects.
+        """
         options = get_agent_options(
             model=self.model,
             thinking_level="off",
@@ -117,6 +126,18 @@ class ThreadAgent:
         options.system_prompt = THREAD_AGENT_SYSTEM_PROMPT
         options.no_tools = True
         options.max_turns = 2
+
+        if options.provider == "synthetic":
+            parsed, meta = await synthetic_json_completion(
+                model=options.model,
+                system_prompt=THREAD_AGENT_SYSTEM_PROMPT,
+                user_prompt=prompt,
+                label="thread-agent",
+            )
+            if meta.get("is_error") or not isinstance(parsed, dict):
+                # Degrade as today: caller maps a None structure to ``unclear``.
+                return None, meta
+            return parsed, meta
 
         agent = PIAgentBase(options)
         return await agent.run_query(prompt)

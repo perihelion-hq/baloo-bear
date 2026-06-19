@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 from baloo.agent.config import get_agent_options
 from baloo.agent.pi_runtime import PIAgentBase
+from baloo.agent.synthetic_json import synthetic_json_completion
 from baloo.config.settings import settings
 from baloo.db.service import DuplicateReviewError, ReviewCompleteDTO, ReviewService
 from baloo.db.tenant import apply_tenant_filter
@@ -305,13 +306,20 @@ async def _decide_synchronize_review_mode(
     changed_files_changed: list,
     scoped_diff: str,
 ) -> tuple[str, str]:
-    """Ask PI whether synchronize should use scoped or full PR context."""
+    """Ask the configured model whether synchronize should use scoped or full PR context.
+
+    The default (glm/synthetic) runs the decision over the Synthetic
+    direct-HTTP json_object path so GLM-5.2 emits a JSON object rather than
+    prose; non-synthetic models fall back to the pi runtime no-tools query.
+    Any failure or unexpected shape falls through to the full_pr default.
+    """
     options = get_agent_options()
+    provider = options.provider
+    model_id = options.model
     options.system_prompt = _SYNC_SCOPE_DECIDER_SYSTEM_PROMPT
     options.max_turns = 1
     options.no_tools = True
     options.thinking_level = "minimal"
-    decider = PIAgentBase(options)
 
     changed_files_list = "\n".join(
         f"- {f.filename} (+{f.additions}/-{f.deletions})"
@@ -334,7 +342,21 @@ Full PR diff (truncated):
 {pr_context.diff[:12000]}
 """
     try:
-        structured, _ = await decider.run_query(prompt)
+        if provider == "synthetic":
+            # Synthetic direct-HTTP path: response_format=json_object forces a
+            # JSON object out of GLM-5.2 instead of prose or a code block. The
+            # helper never raises — failures arrive as structured=None.
+            structured, _meta = await synthetic_json_completion(
+                model=model_id,
+                system_prompt=_SYNC_SCOPE_DECIDER_SYSTEM_PROMPT,
+                user_prompt=prompt,
+                label="scope-decider",
+            )
+        else:
+            # Non-synthetic fallback (e.g. anthropic): keep the existing pi
+            # runtime single-turn no-tools query.
+            decider = PIAgentBase(options)
+            structured, _ = await decider.run_query(prompt)
         if isinstance(structured, dict):
             mode = str(structured.get("mode", "")).strip().lower()
             reason = str(structured.get("reason", "")).strip()

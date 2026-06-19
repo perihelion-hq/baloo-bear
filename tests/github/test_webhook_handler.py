@@ -586,9 +586,12 @@ async def test_scope_decider_logs_unexpected_mode_and_defaults_full_pr(caplog):
         diff="full-pr-diff",
     )
 
+    # Default provider is synthetic (agent_model=glm), so the scope decider
+    # routes through the direct Synthetic json_object helper. Patch that path
+    # to return an unexpected mode and assert the warning + full_pr default.
     with patch(
-        "baloo.review.orchestrator.PIAgentBase.run_query",
-        AsyncMock(return_value=({"mode": "scope"}, {})),
+        "baloo.review.orchestrator.synthetic_json_completion",
+        AsyncMock(return_value=({"mode": "scope"}, {"is_error": False, "provider": "synthetic"})),
     ):
         caplog.set_level("WARNING")
         mode, reason = await _decide_synchronize_review_mode(

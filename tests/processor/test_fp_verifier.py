@@ -235,7 +235,9 @@ class TestFPVerifier:
     @pytest.fixture(autouse=True)
     def _set_env(self, monkeypatch):
         monkeypatch.setenv("FP_VERIFICATION_ENABLED", "true")
-        monkeypatch.setenv("FP_VERIFICATION_MODEL", "haiku")
+        # Default FP model is now "glm" (synthetic). Pin it explicitly so the
+        # verifier resolves the Synthetic direct-HTTP json_object path.
+        monkeypatch.setenv("FP_VERIFICATION_MODEL", "glm")
         monkeypatch.setenv("FP_AUDIT_LOG_PATH", "")
 
     @pytest.mark.asyncio
@@ -416,6 +418,248 @@ class TestFPVerifier:
             assert entry["pr_number"] == 1
             assert entry["finding"]["file"] == "src/auth.py"
             assert entry["finding"]["line"] == 42
+        finally:
+            os.unlink(audit_path)
+
+
+# ---------------------------------------------------------------------------
+# Synthetic direct-HTTP json_object path (glm default)
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_meta(
+    *,
+    is_error: bool = False,
+    error: str | None = None,
+    model: str = "hf:zai-org/GLM-5.2",
+    cost_usd: float = 0.0,
+) -> dict:
+    """Build a metadata dict matching synthetic_json_completion's contract."""
+    return {
+        "model": model,
+        "provider": "synthetic",
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "thinking_tokens": 0,
+        "cost_usd": cost_usd,
+        "is_error": is_error,
+        "error": error,
+        "raw_content": None,
+    }
+
+
+class TestFPVerifierSyntheticPath:
+    """Exercise the real _verify_single over the Synthetic helper (glm default)."""
+
+    @pytest.fixture(autouse=True)
+    def _set_env(self, monkeypatch):
+        monkeypatch.setenv("FP_VERIFICATION_ENABLED", "true")
+        monkeypatch.setenv("FP_VERIFICATION_MODEL", "glm")
+        monkeypatch.setenv("FP_AUDIT_LOG_PATH", "")
+
+    @pytest.mark.asyncio
+    async def test_synthetic_fp_verdict_rejects_finding(self):
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=(
+                {"verdict": "fp", "reason": "uses parameterized query"},
+                _synthetic_meta(cost_usd=0.0),
+            ),
+        ):
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert len(result.rejected) == 1
+        assert len(result.verified) == 0
+        assert result.stats.rejected == 1
+        assert result.stats.errors == 0
+        assert result.rejected[0].reason == "uses parameterized query"
+
+    @pytest.mark.asyncio
+    async def test_synthetic_fp_verdict_without_reason_fails_open(self):
+        """A drop verdict must carry a non-empty reason. {"verdict":"fp"} with no
+        reason is malformed — the finding must be KEPT (fail-open) and recorded
+        as an error, never silently dropped."""
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=({"verdict": "fp"}, _synthetic_meta()),
+        ):
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert len(result.rejected) == 0
+        assert len(result.verified) == 1
+        assert result.stats.errors == 1
+
+    @pytest.mark.asyncio
+    async def test_synthetic_blank_reason_fails_open(self):
+        """A whitespace-only reason is also malformed -> fail-open keep."""
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=({"verdict": "fp", "reason": "   "}, _synthetic_meta()),
+        ):
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert len(result.rejected) == 0
+        assert len(result.verified) == 1
+        assert result.stats.errors == 1
+
+    @pytest.mark.asyncio
+    async def test_synthetic_real_verdict_keeps_finding(self):
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=(
+                {"verdict": "real", "reason": "sql injection is real"},
+                _synthetic_meta(),
+            ),
+        ):
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert len(result.verified) == 1
+        assert len(result.rejected) == 0
+        assert result.stats.kept == 1
+        assert result.stats.errors == 0
+
+    @pytest.mark.asyncio
+    async def test_synthetic_bad_shape_fails_open_keep(self):
+        """parsed has no usable verdict -> fail-open KEEP + error recorded."""
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=({"foo": "bar"}, _synthetic_meta()),
+        ):
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert len(result.verified) == 1
+        assert len(result.rejected) == 0
+        assert result.stats.kept == 1
+        # Invalid shape is kept fail-open and counted as an error.
+        assert result.stats.errors == 1
+
+    @pytest.mark.asyncio
+    async def test_synthetic_none_parsed_fails_open_keep(self):
+        """parsed is None (unparseable) -> fail-open KEEP + error counted."""
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=(None, _synthetic_meta()),
+        ):
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert len(result.verified) == 1
+        assert result.stats.kept == 1
+        assert result.stats.errors == 1
+
+    @pytest.mark.asyncio
+    async def test_synthetic_http_error_fails_open_keep(self):
+        """meta.is_error True (HTTP/transport error) -> fail-open KEEP."""
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=(
+                None,
+                _synthetic_meta(is_error=True, error="HTTP 401 unauthorized"),
+            ),
+        ):
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert len(result.verified) == 1
+        assert len(result.rejected) == 0
+        assert result.stats.kept == 1
+        assert result.stats.errors == 1
+
+    @pytest.mark.asyncio
+    async def test_synthetic_audit_records_provider_and_error(self):
+        """Audit entry carries provider and an error category on failure."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            audit_path = f.name
+
+        try:
+            verifier = FPVerifier()
+            verifier.audit_log_path = audit_path
+            comment = _make_comment()
+            pr_ctx = _make_pr_context()
+
+            with patch(
+                "baloo.processor.fp_verifier.synthetic_json_completion",
+                new_callable=AsyncMock,
+                return_value=(
+                    None,
+                    _synthetic_meta(is_error=True, error="HTTP 401 unauthorized"),
+                ),
+            ):
+                await verifier.verify([comment], pr_ctx)
+
+            with open(audit_path) as f:
+                lines = f.readlines()
+            assert len(lines) == 1
+            entry = json.loads(lines[0])
+            # Fail-open keeps the finding as "real" but the error is observable.
+            assert entry["verdict"] == "real"
+            assert entry["provider"] == "synthetic"
+            assert entry["error"] == "HTTP 401 unauthorized"
+            assert entry["reason"] == "HTTP 401 unauthorized"
+        finally:
+            os.unlink(audit_path)
+
+    @pytest.mark.asyncio
+    async def test_synthetic_audit_records_provider_on_success(self):
+        """Clean verdict audit entry carries provider='synthetic' and no error."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            audit_path = f.name
+
+        try:
+            verifier = FPVerifier()
+            verifier.audit_log_path = audit_path
+            comment = _make_comment()
+            pr_ctx = _make_pr_context()
+
+            with patch(
+                "baloo.processor.fp_verifier.synthetic_json_completion",
+                new_callable=AsyncMock,
+                return_value=(
+                    {"verdict": "fp", "reason": "false alarm"},
+                    _synthetic_meta(),
+                ),
+            ):
+                await verifier.verify([comment], pr_ctx)
+
+            with open(audit_path) as f:
+                lines = f.readlines()
+            entry = json.loads(lines[0])
+            assert entry["verdict"] == "fp"
+            assert entry["provider"] == "synthetic"
+            assert "error" not in entry
         finally:
             os.unlink(audit_path)
 

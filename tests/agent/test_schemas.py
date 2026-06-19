@@ -148,6 +148,31 @@ class TestReviewOutput:
         output = ReviewOutput.model_validate(data)
         assert len(output.findings) == 1
 
+    def test_validate_top_level_list_wraps_as_findings(self):
+        """GLM-5.2 sometimes returns findings as a top-level JSON array instead
+        of {"findings":[...]}. model_validate must wrap it, not crash."""
+        data = [
+            {
+                "file": "a.py",
+                "line": 3,
+                "severity": "HIGH",
+                "category": "Security",
+                "title": "X",
+                "description": "Y",
+            },
+            {
+                "file": "b.py",
+                "line": 9,
+                "severity": "LOW",
+                "category": "Quality",
+                "title": "Z",
+                "description": "W",
+            },
+        ]
+        output = ReviewOutput.model_validate(data)
+        assert len(output.findings) == 2
+        assert output.findings[0].file == "a.py"
+
 
 class TestReviewOutputSchema:
     """Tests for review_output_schema function."""
@@ -169,6 +194,23 @@ class TestReviewOutputSchema:
 
 class TestFindingsToComments:
     """Tests for findings_to_comments conversion."""
+
+    def test_top_level_list_produces_comments(self):
+        """A top-level findings array must produce comments, not crash."""
+        comments = findings_to_comments(
+            [
+                {
+                    "file": "a.py",
+                    "line": 3,
+                    "severity": "HIGH",
+                    "category": "Security",
+                    "title": "X",
+                    "description": "Y",
+                }
+            ]
+        )
+        assert len(comments) == 1
+        assert comments[0].path == "a.py"
 
     def test_single_finding(self):
         """Test converting a single finding to ReviewComment."""

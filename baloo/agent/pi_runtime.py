@@ -106,8 +106,39 @@ def _extract_json_from_text(text: str) -> dict | None:
     return None
 
 
+# Keys that mark a dict as a review finding. A top-level array is only treated
+# as a findings array when its elements carry at least one of these — otherwise
+# an arbitrary array like ``[{"foo": "bar"}]`` would be coerced (via lenient
+# ReviewFinding defaults) into a bogus "unknown:1" issue.
+_FINDING_KEYS = frozenset(
+    {
+        "file",
+        "line",
+        "severity",
+        "category",
+        "title",
+        "description",
+        "impact",
+        "recommendation",
+        "code_example",
+    }
+)
+
+
+def _looks_like_finding(item: Any) -> bool:
+    """True if ``item`` is a dict carrying at least one review-finding key."""
+    return isinstance(item, dict) and any(key in item for key in _FINDING_KEYS)
+
+
 def _is_review_shaped(obj: Any) -> bool:
-    """True if a parsed object looks like a review (has a ``findings`` list).
+    """True if a parsed object is a usable review.
+
+    Usable means either a ``{"findings": [...]}`` object OR a top-level findings
+    array ``[ {finding}, ... ]`` (GLM-5.2 sometimes returns the bare array; it is
+    recoverable — ReviewOutput.model_validate wraps it). In both forms, every
+    element must be finding-like; an empty array is an empty review. A non-review
+    array (e.g. ``[{"foo": "bar"}]``, ``["text"]``) is rejected so it fails
+    closed instead of being coerced into a bogus finding.
 
     ``response_format=json_object`` only guarantees *valid* JSON, not a
     schema-correct review. A repair that returns valid-but-non-review JSON — an
@@ -116,7 +147,11 @@ def _is_review_shaped(obj: Any) -> bool:
     Otherwise the empty result degrades into a false clean approval (the GLM
     prose-vs-JSON production failure).
     """
-    return isinstance(obj, dict) and isinstance(obj.get("findings"), list)
+    if isinstance(obj, list):
+        return all(_looks_like_finding(item) for item in obj)
+    if isinstance(obj, dict) and isinstance(obj.get("findings"), list):
+        return all(_looks_like_finding(item) for item in obj["findings"])
+    return False
 
 
 def _load_json_with_repair(text: str) -> Any | None:
@@ -727,9 +762,9 @@ Serialized payload:
         """
         settings = get_settings()
         api_key = settings.synthetic_api_key or os.environ.get("SYNTHETIC_API_KEY", "")
-        base_url = (
-            settings.synthetic_base_url or "https://api.synthetic.new/openai/v1"
-        ).rstrip("/")
+        base_url = (settings.synthetic_base_url or "https://api.synthetic.new/openai/v1").rstrip(
+            "/"
+        )
 
         system_prompt, user_prompt = self._build_retry_messages(raw_text)
         body = {
