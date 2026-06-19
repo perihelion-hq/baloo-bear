@@ -48,6 +48,15 @@ RUN useradd -m -u 1000 baloo && chown -R baloo:baloo /app
 
 # Register custom pi providers (e.g. synthetic/GLM) so pi resolves them at runtime.
 # The committed models.json references API keys via ${ENV_VAR} only — no secrets baked in.
+#
+# HOME must be set explicitly: pi resolves models.json via os.homedir(), which on
+# POSIX reads $HOME. `useradd -m` creates /home/baloo but does NOT set the runtime
+# HOME env var, so without this pi looks in the wrong place and the synthetic/GLM
+# provider goes undefined (agent calls fail with "0 tokens / Agent returned error").
+# PI_CODING_AGENT_DIR is pi's purpose-built, HOME-independent override and pins the
+# lookup directly at the models.json directory as defense-in-depth.
+ENV HOME=/home/baloo
+ENV PI_CODING_AGENT_DIR=/home/baloo/.pi/agent
 RUN mkdir -p /home/baloo/.pi/agent
 COPY --chown=baloo:baloo pi/models.json /home/baloo/.pi/agent/models.json
 

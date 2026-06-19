@@ -13,6 +13,7 @@ class DecisionEngine:
     def make_decision(
         comments: list[ReviewComment],
         fidelity_result: FidelityResult | None = None,
+        agent_had_error: bool = False,
     ) -> tuple[bool, bool]:
         """
         Determine review decision based on findings and fidelity score.
@@ -20,10 +21,20 @@ class DecisionEngine:
         Args:
             comments: List of review comments
             fidelity_result: Optional fidelity analysis result
+            agent_had_error: True when the review agent failed to produce a
+                usable result (e.g. no parseable structured output). A failed
+                review must never be presented as a clean approval, so this
+                short-circuits to "no decision" regardless of auto-approve or
+                fidelity score.
 
         Returns:
             Tuple of (approve, request_changes)
         """
+        # A review that did not actually complete cannot approve OR request
+        # changes — we have no trustworthy findings to base either on.
+        if agent_had_error:
+            return (False, False)
+
         settings = get_settings()
 
         # Count by severity using shared utility

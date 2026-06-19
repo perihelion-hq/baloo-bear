@@ -145,7 +145,12 @@ class TestBalooAgentErrorHandling:
 
     @pytest.mark.asyncio
     async def test_review_pr_handles_empty_response(self, sample_pr_context):
-        """Test handling of empty structured output (no JSON in response)."""
+        """No structured output is an agent failure, NOT a clean approval.
+
+        Previously this asserted approve is True, which silently degraded a
+        failed review into a false 'no issues' approval. The fix: an empty/
+        unparseable response sets agent_error and must not approve.
+        """
         events = _make_pi_events(None)
         agent = BalooAgent()
 
@@ -154,7 +159,11 @@ class TestBalooAgentErrorHandling:
             result = await agent.review_pr(sample_pr_context)
 
             assert result.comments == []
-            assert result.approve is True  # No issues = approve
+            assert result.metadata["agent_error"] is True
+            assert result.approve is False
+            assert result.request_changes is False
+            # Summary must signal the failure, not a clean approval
+            assert "Approve. Approve. Approve." not in result.summary
 
     @pytest.mark.asyncio
     async def test_max_turns_reached_sets_error_category(self, sample_pr_context):
@@ -169,6 +178,35 @@ class TestBalooAgentErrorHandling:
 
         assert result.metadata["agent_error"] is True
         assert result.metadata["error_category"] == "max_turns_reached"
+
+    @pytest.mark.asyncio
+    async def test_json_retry_with_zero_findings_fails_closed(self, sample_pr_context):
+        """A JSON retry means the agent's primary output was unparseable. Recovering
+        ZERO findings from that is not trustworthy enough to bless a clean approval —
+        this is exactly what false-approved a real eval() RCE in production (GLM
+        emitted prose, the json_object retry returned an empty/echo object, and the
+        empty result degraded into 'No issue. Code good.').
+        """
+        with patch.object(
+            BalooAgent,
+            "_run_with_fallback",
+            new=AsyncMock(
+                return_value=(
+                    {"findings": [], "summary": {"total_issues": 0}},
+                    {"json_retry": True, "model": "glm", "output_tokens": 120},
+                )
+            ),
+        ):
+            agent = BalooAgent()
+            result = await agent.review_pr(sample_pr_context)
+
+        assert result.comments == []
+        assert result.metadata["agent_error"] is True
+        assert result.metadata["error_category"] == "json_parse_error"
+        assert result.approve is False
+        assert result.request_changes is False
+        # Must not degrade into a clean approval
+        assert "Approve. Approve. Approve." not in result.summary
 
     @pytest.mark.asyncio
     async def test_review_pr_handles_error_stop_reason(self, sample_pr_context):
@@ -488,6 +526,24 @@ class TestBalooAgentMetadata:
             assert result.metadata["cache_read_tokens"] == 1000
             assert result.metadata["cache_write_tokens"] == 200
             assert result.metadata["cost_usd"] == pytest.approx(0.10)
+
+    def test_format_summary_agent_error_is_not_clean_approval(self):
+        """An agent_error summary must signal failure, never a clean approval."""
+        metadata = {
+            "model": "hf:zai-org/GLM-5.2",
+            "agent_error": True,
+            "error_category": "no_output",
+            "input_tokens": 800,
+            "output_tokens": 0,
+            "cost_usd": 0.0,
+            "num_turns": 1,
+            "duration_seconds": 5.0,
+        }
+
+        result = CommentFormatter.format_summary([], metadata)
+
+        assert "Approve. Approve. Approve." not in result
+        assert "No finish" in result
 
     def test_format_metadata_section(self):
         """Test summary formatting with metadata."""

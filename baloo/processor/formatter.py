@@ -40,7 +40,15 @@ class CommentFormatter:
         summary_parts = []
         summary_parts.append("## Rocky Review Summary\n")
 
-        if not comments:
+        if metadata and metadata.get("agent_error"):
+            # The review agent did not finish (e.g. unparseable output). Never
+            # present this as a clean approval — say so plainly and ask for a
+            # re-run. No approve, no merge signal.
+            summary_parts.append(
+                "⚠️ **No finish. No finish.** I try read your code but inside something break. "
+                "I cannot give review. I **NOT approve** — too risky. You run me again. Again."
+            )
+        elif not comments:
             summary_parts.append(
                 "✅ **Approve. Approve. Approve.** No issue. Code good. Good. Good."
             )
