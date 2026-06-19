@@ -95,6 +95,10 @@ class FPVerifier:
         self.model = model or settings.fp_verification_model
         self.max_concurrent = max_concurrent or settings.fp_verification_max_concurrent
         self.audit_log_path = settings.fp_audit_log_path
+        # Severities that bypass FP verification and are kept unconditionally
+        # (no synthetic call). Normalized to upper-case for case-insensitive
+        # comparison against each finding's severity.
+        self.skip_severities = {s.strip().upper() for s in settings.fp_verification_skip_severities}
 
     async def verify(
         self,
@@ -114,22 +118,52 @@ class FPVerifier:
             return FPVerificationResult()
 
         start_time = time.time()
+
+        # Partition findings: those whose severity is in the skip set are kept
+        # unconditionally (no synthetic call) — FP verification only drops
+        # findings, so the riskiest (CRITICAL/HIGH by default) are never risked
+        # on a false FP-verdict and never add to the synthetic load. Only the
+        # remaining findings (MEDIUM/LOW) go through the concurrent verify path.
+        skipped: list[ReviewComment] = []
+        to_verify: list[ReviewComment] = []
+        for comment in comments:
+            if _severity_value(comment.severity) in self.skip_severities:
+                skipped.append(comment)
+            else:
+                to_verify.append(comment)
+
+        # Collect results
+        result = FPVerificationResult()
+        stats = FPStats(total_verified=len(to_verify))
+
+        # Keep skipped (high-severity) findings without a synthetic call. They
+        # count toward `kept`; a light audit entry records that they bypassed
+        # verification by severity (no "verified" verdict).
+        for comment in skipped:
+            result.verified.append(comment)
+            stats.kept += 1
+            self._write_audit_entry(
+                comment=comment,
+                verdict="skipped",
+                reason="severity skipped",
+                model=self.model,
+                cost_usd=0.0,
+                pr_context=pr_context,
+                provider=None,
+            )
+
         semaphore = asyncio.Semaphore(self.max_concurrent)
 
         async def _verify_one(comment: ReviewComment) -> tuple[ReviewComment, dict]:
             async with semaphore:
                 return await self._verify_single(comment, pr_context)
 
-        # Run all verifications concurrently
-        tasks = [_verify_one(c) for c in comments]
+        # Run remaining verifications concurrently
+        tasks = [_verify_one(c) for c in to_verify]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Collect results
-        result = FPVerificationResult()
-        stats = FPStats(total_verified=len(comments))
-
         for i, res in enumerate(results):
-            comment = comments[i]
+            comment = to_verify[i]
 
             if isinstance(res, Exception):
                 # Fail-open: keep the finding on error
@@ -409,6 +443,17 @@ class FPVerifier:
                 f.write(json.dumps(entry) + "\n")
         except Exception as exc:
             logger.warning("Failed to write FP audit log: %s", exc)
+
+
+def _severity_value(severity: object) -> str:
+    """Normalize a finding severity to an upper-case string.
+
+    ``ReviewComment.severity`` is a ``ReviewSeverity`` str-enum whose ``.value``
+    is the bare label (e.g. ``"HIGH"``). Fall back to ``str()`` for any other
+    representation, then upper-case for case-insensitive comparison.
+    """
+    value = getattr(severity, "value", severity)
+    return str(value).strip().upper()
 
 
 def _extract_title(body: str) -> str:

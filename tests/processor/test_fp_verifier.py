@@ -33,10 +33,13 @@ from baloo.processor.fp_verifier import (
 def _make_comment(
     path: str = "src/auth.py",
     line: int = 42,
-    severity: str = "HIGH",
+    severity: str = "MEDIUM",
     category: str = "Security",
-    body: str = "**SQL injection risk**\n**Category:** Security\n**Severity:** HIGH\n\nString concatenation in query.",
+    body: str = "**SQL injection risk**\n**Category:** Security\n**Severity:** MEDIUM\n\nString concatenation in query.",
 ) -> ReviewComment:
+    # Default severity is MEDIUM so verify-path tests actually exercise the
+    # synthetic verification call. CRITICAL/HIGH are skipped (kept) without a
+    # synthetic call — see TestFPVerifierSeveritySkip.
     return ReviewComment(path=path, line=line, body=body, severity=severity, category=category)
 
 
@@ -82,7 +85,7 @@ class TestFPPrompts:
         prompt = build_verification_prompt(comment, diff_context="+ some code")
         assert "src/auth.py" in prompt
         assert "line 42" in prompt
-        assert "HIGH" in prompt
+        assert "MEDIUM" in prompt
         assert "some code" in prompt
 
     def test_build_verification_prompt_with_file_context(self):
@@ -660,6 +663,169 @@ class TestFPVerifierSyntheticPath:
             assert entry["verdict"] == "fp"
             assert entry["provider"] == "synthetic"
             assert "error" not in entry
+        finally:
+            os.unlink(audit_path)
+
+
+# ---------------------------------------------------------------------------
+# Severity skip: CRITICAL/HIGH bypass FP verification (no synthetic call)
+# ---------------------------------------------------------------------------
+
+
+class TestFPVerifierSeveritySkip:
+    """CRITICAL/HIGH findings are kept unconditionally without a synthetic call."""
+
+    @pytest.fixture(autouse=True)
+    def _set_env(self, monkeypatch):
+        monkeypatch.setenv("FP_VERIFICATION_ENABLED", "true")
+        monkeypatch.setenv("FP_VERIFICATION_MODEL", "glm")
+        monkeypatch.setenv("FP_AUDIT_LOG_PATH", "")
+
+    @pytest.mark.asyncio
+    async def test_critical_and_high_kept_without_synthetic_call(self):
+        verifier = FPVerifier()
+        critical = _make_comment(path="a.py", line=10, severity="CRITICAL")
+        high = _make_comment(path="b.py", line=20, severity="HIGH")
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+        ) as mock_synth:
+            result = await verifier.verify([critical, high], pr_ctx)
+
+        # No synthetic call for skipped severities.
+        assert mock_synth.await_count == 0
+        # Both kept, none verified or rejected.
+        assert len(result.verified) == 2
+        assert len(result.rejected) == 0
+        assert {c.path for c in result.verified} == {"a.py", "b.py"}
+        assert result.stats.kept == 2
+        # total_verified reflects only findings actually sent to verification.
+        assert result.stats.total_verified == 0
+        assert result.stats.errors == 0
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_skip(self):
+        """Skip set is normalized case-insensitively against the finding severity."""
+        verifier = FPVerifier()
+        # Simulate a skip set configured with mixed case; comparison must still
+        # match the CRITICAL finding (ReviewComment enums are upper-case only).
+        verifier.skip_severities = {"critical".upper()}
+        comment = _make_comment(severity="CRITICAL")
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+        ) as mock_synth:
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert mock_synth.await_count == 0
+        assert len(result.verified) == 1
+        assert result.stats.kept == 1
+        assert result.stats.total_verified == 0
+
+    @pytest.mark.asyncio
+    async def test_medium_still_verified_and_rejected(self):
+        """A MEDIUM finding still goes through FP verification (fp -> rejected)."""
+        verifier = FPVerifier()
+        comment = _make_comment(severity="MEDIUM")
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=(
+                {"verdict": "fp", "reason": "uses parameterized query"},
+                _synthetic_meta(),
+            ),
+        ) as mock_synth:
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert mock_synth.await_count == 1
+        assert len(result.rejected) == 1
+        assert len(result.verified) == 0
+        assert result.stats.rejected == 1
+        assert result.stats.total_verified == 1
+
+    @pytest.mark.asyncio
+    async def test_low_still_verified_and_kept(self):
+        """A LOW finding still goes through FP verification (real -> kept)."""
+        verifier = FPVerifier()
+        comment = _make_comment(severity="LOW")
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=(
+                {"verdict": "real", "reason": "genuine issue"},
+                _synthetic_meta(),
+            ),
+        ) as mock_synth:
+            result = await verifier.verify([comment], pr_ctx)
+
+        assert mock_synth.await_count == 1
+        assert len(result.verified) == 1
+        assert len(result.rejected) == 0
+        assert result.stats.kept == 1
+        assert result.stats.total_verified == 1
+
+    @pytest.mark.asyncio
+    async def test_mixed_batch_only_medium_triggers_synthetic(self):
+        """CRITICAL kept w/o call; MEDIUM verified via exactly one synthetic call."""
+        verifier = FPVerifier()
+        critical = _make_comment(path="crit.py", line=1, severity="CRITICAL")
+        medium = _make_comment(path="med.py", line=2, severity="MEDIUM")
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=(
+                {"verdict": "real", "reason": "legit medium issue"},
+                _synthetic_meta(),
+            ),
+        ) as mock_synth:
+            result = await verifier.verify([critical, medium], pr_ctx)
+
+        # Exactly one synthetic call — only for the MEDIUM finding.
+        assert mock_synth.await_count == 1
+        # Both handled: CRITICAL kept by skip, MEDIUM kept by verdict.
+        assert len(result.verified) == 2
+        assert len(result.rejected) == 0
+        assert {c.path for c in result.verified} == {"crit.py", "med.py"}
+        assert result.stats.kept == 2
+        # Only the MEDIUM was actually verified.
+        assert result.stats.total_verified == 1
+
+    @pytest.mark.asyncio
+    async def test_skip_writes_skipped_audit_entry(self):
+        """Skipped findings get a light audit entry with verdict='skipped'."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            audit_path = f.name
+
+        try:
+            verifier = FPVerifier()
+            verifier.audit_log_path = audit_path
+            comment = _make_comment(severity="HIGH")
+            pr_ctx = _make_pr_context()
+
+            with patch(
+                "baloo.processor.fp_verifier.synthetic_json_completion",
+                new_callable=AsyncMock,
+            ) as mock_synth:
+                await verifier.verify([comment], pr_ctx)
+
+            assert mock_synth.await_count == 0
+            with open(audit_path) as f:
+                lines = f.readlines()
+            assert len(lines) == 1
+            entry = json.loads(lines[0])
+            assert entry["verdict"] == "skipped"
+            assert entry["reason"] == "severity skipped"
+            assert entry["finding"]["severity"] == "HIGH"
         finally:
             os.unlink(audit_path)
 
