@@ -950,7 +950,7 @@ class TestPIAgentBaseRunQuery:
 
         with patch("baloo.agent.pi_runtime.httpx.AsyncClient", return_value=acm):
             with patch("baloo.agent.http_retry.asyncio.sleep", AsyncMock()) as sleep:
-                parsed, content, usage = await agent._synthetic_chat_json(
+                parsed, content, usage, _finish = await agent._synthetic_chat_json(
                     system_prompt="s", user_prompt="u", api_key="k", base_url="http://x"
                 )
 
@@ -975,13 +975,14 @@ class TestPIAgentBaseRunQuery:
 
         with patch("baloo.agent.pi_runtime.httpx.AsyncClient", return_value=acm):
             with patch("baloo.agent.http_retry.asyncio.sleep", AsyncMock()):
-                parsed, content, usage = await agent._synthetic_chat_json(
+                parsed, content, usage, finish_reason = await agent._synthetic_chat_json(
                     system_prompt="s", user_prompt="u", api_key="k", base_url="http://x"
                 )
 
         assert parsed is None
         assert content is None
         assert usage == {}
+        assert finish_reason is None
         # First attempt + 3 retries == 4 POSTs.
         assert client.post.await_count == 4
 

@@ -33,15 +33,19 @@ async def synthetic_json_completion(
     model: str,
     system_prompt: str,
     user_prompt: str,
+    response_format: dict | None = None,
     label: str = "synthetic-json",
     timeout: float = 120.0,
 ) -> tuple[Any, dict[str, Any]]:
-    """Call Synthetic /chat/completions with response_format=json_object.
+    """Call Synthetic /chat/completions, constraining output via ``response_format``.
 
     Args:
         model: Synthetic model id (e.g. ``hf:zai-org/GLM-5.2``).
         system_prompt: System message content.
         user_prompt: User message content.
+        response_format: OpenAI-compatible ``response_format`` envelope. When
+            omitted, defaults to ``{"type": "json_object"}``; callers that want
+            schema enforcement pass a ``json_schema`` envelope.
         label: Short label used in log lines for correlation.
         timeout: HTTP timeout in seconds.
 
@@ -49,8 +53,8 @@ async def synthetic_json_completion(
         ``(parsed_json_or_None, metadata)``. ``metadata`` always contains
         ``model``, ``provider`` (``"synthetic"``), ``input_tokens``,
         ``output_tokens``, ``thinking_tokens``, ``cost_usd``, ``is_error``,
-        ``error`` (None on success), and ``raw_content`` (the model's raw text,
-        preserved for auditing even when unparseable).
+        ``error`` (None on success), ``raw_content`` (the model's raw text,
+        preserved for auditing even when unparseable), and ``finish_reason``.
     """
     settings = get_settings()
     api_key = settings.synthetic_api_key or os.environ.get("SYNTHETIC_API_KEY", "")
@@ -67,6 +71,7 @@ async def synthetic_json_completion(
         "is_error": False,
         "error": None,
         "raw_content": None,
+        "finish_reason": None,
         "duration_seconds": 0.0,
     }
 
@@ -76,7 +81,7 @@ async def synthetic_json_completion(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "response_format": {"type": "json_object"},
+        "response_format": response_format or {"type": "json_object"},
     }
 
     start = time.time()
@@ -100,6 +105,7 @@ async def synthetic_json_completion(
                 "output_tokens": usage.get("completion_tokens", 0),
                 "thinking_tokens": reasoning_tokens,
                 "raw_content": content,
+                "finish_reason": data["choices"][0].get("finish_reason"),
                 "duration_seconds": time.time() - start,
             }
         )

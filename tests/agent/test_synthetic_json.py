@@ -53,6 +53,38 @@ async def test_parses_json_object_and_reports_usage():
 
 
 @pytest.mark.asyncio
+async def test_passes_response_format_through_and_reports_finish_reason():
+    """A caller-supplied response_format is sent verbatim and finish_reason surfaced."""
+    rf = {"type": "json_schema", "json_schema": {"name": "x", "strict": True, "schema": {}}}
+    response_json = {
+        "choices": [{"message": {"content": '{"a": 1}'}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+    }
+    acm, client = _mock_client(response_json)
+    with patch("baloo.agent.synthetic_json.httpx.AsyncClient", return_value=acm):
+        parsed, meta = await synthetic_json_completion(
+            model="m", system_prompt="s", user_prompt="u", response_format=rf
+        )
+    assert client.post.call_args.kwargs["json"]["response_format"] == rf
+    assert meta["finish_reason"] == "stop"
+    assert parsed == {"a": 1}
+
+
+@pytest.mark.asyncio
+async def test_default_response_format_is_json_object_with_finish_reason():
+    """With no response_format, the helper defaults to json_object and reports finish_reason."""
+    response_json = {
+        "choices": [{"message": {"content": '{"verdict": "fp"}'}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+    }
+    acm, client = _mock_client(response_json)
+    with patch("baloo.agent.synthetic_json.httpx.AsyncClient", return_value=acm):
+        _, meta = await synthetic_json_completion(model="m", system_prompt="s", user_prompt="u")
+    assert client.post.call_args.kwargs["json"]["response_format"] == {"type": "json_object"}
+    assert meta["finish_reason"] == "stop"
+
+
+@pytest.mark.asyncio
 async def test_http_error_returns_none_with_error_metadata():
     client = AsyncMock()
     client.post = AsyncMock(side_effect=httpx.HTTPError("boom"))

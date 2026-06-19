@@ -751,14 +751,23 @@ Serialized payload:
         )
 
     async def _synthetic_chat_json(
-        self, *, system_prompt: str, user_prompt: str, api_key: str, base_url: str
-    ) -> tuple[Any, str | None, dict[str, Any]]:
-        """One Synthetic /chat/completions json_object call.
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        api_key: str,
+        base_url: str,
+        response_format: dict | None = None,
+    ) -> tuple[Any, str | None, dict[str, Any], str | None]:
+        """One Synthetic /chat/completions call constrained by ``response_format``.
 
-        Returns ``(review_or_None, raw_content_or_None, usage)``. ``review_or_None``
-        is the parsed object only when it is review-shaped; otherwise None (so the
-        caller can escalate). Never raises — transport/HTTP errors return
-        ``(None, None, {})``.
+        ``response_format`` defaults to ``{"type": "json_object"}``; callers that
+        want schema enforcement pass a ``json_schema`` envelope.
+
+        Returns ``(review_or_None, raw_content_or_None, usage, finish_reason)``.
+        ``review_or_None`` is the parsed object only when it is review-shaped;
+        otherwise None (so the caller can escalate). Never raises —
+        transport/HTTP errors return ``(None, None, {}, None)``.
         """
         body = {
             "model": self.options.model,
@@ -766,7 +775,7 @@ Serialized payload:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "response_format": {"type": "json_object"},
+            "response_format": response_format or {"type": "json_object"},
         }
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
@@ -780,9 +789,11 @@ Serialized payload:
                 data = resp.json()
         except Exception as exc:
             logger.warning("%s: synthetic JSON call failed: %s", self.agent_name, exc)
-            return None, None, {}
+            return None, None, {}, None
 
-        content = data["choices"][0]["message"]["content"]
+        choice = data["choices"][0]
+        content = choice["message"]["content"]
+        finish_reason = choice.get("finish_reason")
         parsed = _extract_json_from_text(content)
         if parsed is not None and not _is_review_shaped(parsed):
             logger.warning(
@@ -791,7 +802,7 @@ Serialized payload:
                 list(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__,
             )
             parsed = None
-        return parsed, content, (data.get("usage") or {})
+        return parsed, content, (data.get("usage") or {}), finish_reason
 
     async def _retry_json_synthetic(
         self, *, raw_text: str, original_query: str | None = None
@@ -836,7 +847,7 @@ Serialized payload:
 
         # Attempt 1: convert/extract from the malformed assistant text.
         sys_p, usr_p = self._build_retry_messages(raw_text)
-        parsed, content, usage = await self._synthetic_chat_json(
+        parsed, content, usage, _ = await self._synthetic_chat_json(
             system_prompt=sys_p, user_prompt=usr_p, api_key=api_key, base_url=base_url
         )
         _tally(usage)
@@ -850,7 +861,7 @@ Serialized payload:
                 "%s: extract retry yielded no review; re-reviewing diff via json_object",
                 self.agent_name,
             )
-            parsed2, content2, usage2 = await self._synthetic_chat_json(
+            parsed2, content2, usage2, _ = await self._synthetic_chat_json(
                 system_prompt=self.options.system_prompt,
                 user_prompt=original_query,
                 api_key=api_key,
