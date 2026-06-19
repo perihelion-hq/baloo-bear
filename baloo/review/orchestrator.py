@@ -65,6 +65,24 @@ Choose "scoped" when the latest push can be reviewed primarily from before..head
 Choose "full_pr" when latest push likely changes behavior broadly enough to re-review the full PR.
 """
 
+# Strict json_schema envelope constraining the scope decision to {mode, reason}.
+_SCOPE_DECISION_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "scope_decision",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "mode": {"type": "string", "enum": ["scoped", "full_pr"]},
+                "reason": {"type": "string"},
+            },
+            "required": ["mode", "reason"],
+        },
+    },
+}
+
 # Semaphore to limit concurrent reviews (prevent overwhelming the system)
 # Initialized lazily on first use to respect settings
 review_semaphore = None
@@ -350,6 +368,7 @@ Full PR diff (truncated):
                 model=model_id,
                 system_prompt=_SYNC_SCOPE_DECIDER_SYSTEM_PROMPT,
                 user_prompt=prompt,
+                response_format=_SCOPE_DECISION_SCHEMA,
                 label="scope-decider",
             )
         else:

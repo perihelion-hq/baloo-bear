@@ -30,6 +30,27 @@ from baloo.processor.fp_prompts import (
 
 logger = logging.getLogger(__name__)
 
+# Strict json_schema envelope constraining the FP verdict to {verdict, reason}.
+# verdict is the two-value enum _build_verdict requires; reason must be present
+# (strict mode → required), so the "drop without reason" malformed case cannot
+# arise from a schema-valid response.
+_FP_VERDICT_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "fp_verdict",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "verdict": {"type": "string", "enum": ["real", "fp"]},
+                "reason": {"type": "string"},
+            },
+            "required": ["verdict", "reason"],
+        },
+    },
+}
+
 
 @dataclass
 class FPRejection:
@@ -293,6 +314,7 @@ class FPVerifier:
                 model=model_id,
                 system_prompt=FP_SYSTEM_PROMPT,
                 user_prompt=prompt,
+                response_format=_FP_VERDICT_SCHEMA,
                 label="FPVerifier",
             )
             return self._build_verdict(comment, parsed, meta, provider, model_id)

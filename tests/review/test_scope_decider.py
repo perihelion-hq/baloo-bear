@@ -148,6 +148,28 @@ async def test_none_parsed_falls_back_to_full_pr():
 
 
 @pytest.mark.asyncio
+async def test_scope_decider_uses_json_schema():
+    """The scope decision call constrains output with response_format=json_schema(scope_decision)."""
+    with (
+        patch(
+            "baloo.review.orchestrator.get_agent_options",
+            return_value=_synthetic_options(),
+        ),
+        patch(
+            "baloo.review.orchestrator.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=({"mode": "scoped", "reason": "x"}, _synthetic_meta()),
+        ) as mock_helper,
+    ):
+        await _run_decider()
+
+    rf = mock_helper.call_args.kwargs["response_format"]
+    assert rf["type"] == "json_schema"
+    assert rf["json_schema"]["name"] == "scope_decision"
+    assert rf["json_schema"]["strict"] is True
+
+
+@pytest.mark.asyncio
 async def test_unexpected_mode_falls_back_to_full_pr():
     """Dict without a valid mode -> full_pr default."""
     with (
