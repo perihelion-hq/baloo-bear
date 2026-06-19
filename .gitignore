@@ -234,3 +234,9 @@ temp/
 
 # AI agent plans/specs (internal workflow scaffolding)
 docs/superpowers/
+
+# Local pi agent credentials/state — never commit (also excluded from the Docker
+# build context via .dockerignore). auth.json holds pi provider credentials;
+# sessions/ holds local run state.
+pi/auth.json
+pi/sessions/
