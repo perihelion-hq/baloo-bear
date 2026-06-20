@@ -73,7 +73,7 @@ def test_prompt_includes_previous_baloo_recommendations():
         "files_changed": [{"filename": "auth/cache.py"}],
         "changed_file_paths": ["auth/cache.py"],
         "diff": "diff --git a/auth/cache.py",
-        "discussion_digest": "**Open Baloo threads awaiting response:** 1",
+        "discussion_digest": "**Open Rocky threads awaiting response:** 1",
         "awaiting_discussions": 1,
         "discussion_threads": [
             {
@@ -102,7 +102,7 @@ def test_prompt_includes_previous_baloo_recommendations():
     prompt = build_pr_review_prompt(pr_context)
 
     # Check that previous recommendations section exists
-    assert "Previous Baloo Recommendations" in prompt
+    assert "Previous Rocky Recommendations" in prompt
     assert "auth/cache.py:57" in prompt
     assert "Remove 'cached_at'" in prompt
 
@@ -129,7 +129,7 @@ def test_prompt_without_baloo_threads_no_warnings():
     prompt = build_pr_review_prompt(pr_context)
 
     # Should not include previous recommendations section
-    assert "Previous Baloo Recommendations" not in prompt
+    assert "Previous Rocky Recommendations" not in prompt
     assert "DO NOT contradict" not in prompt
 
 

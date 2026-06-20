@@ -1,6 +1,6 @@
 # Dashboard
 
-Baloo includes an optional review history dashboard backed by PostgreSQL. It provides visibility into review activity, costs, and findings across all repositories.
+Rocky includes an optional review history dashboard backed by PostgreSQL. It provides visibility into review activity, costs, and findings across all repositories.
 
 ## What It Shows
 
@@ -40,4 +40,4 @@ http://localhost:8000/dashboard/
 
 ## Without the Dashboard
 
-If you don't need review history, leave `DATABASE_ENABLED=false`. Baloo works fine without a database — it just won't persist review data between restarts.
+If you don't need review history, leave `DATABASE_ENABLED=false`. Rocky works fine without a database — it just won't persist review data between restarts.

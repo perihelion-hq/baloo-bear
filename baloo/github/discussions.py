@@ -205,7 +205,7 @@ def build_discussion_digest(
     )
 
     lines: list[str] = [
-        f"**Open Baloo threads awaiting response:** {awaiting_count}",
+        f"**Open Rocky threads awaiting response:** {awaiting_count}",
         "**Recent inline discussions:**",
     ]
 

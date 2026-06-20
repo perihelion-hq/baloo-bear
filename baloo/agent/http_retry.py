@@ -109,3 +109,80 @@ async def post_with_retry_on_429(
             )
             await asyncio.sleep(delay)
             attempt += 1
+
+
+# Substrings in a 4xx body that signal the response_format/json_schema/strict
+# combination is unsupported (vs an unrelated 400). Lowercased substring match.
+# Downgrading is always safe (json_object is universally valid), so breadth here
+# only risks an extra retry, never a wrong success.
+_FORMAT_UNSUPPORTED_MARKERS = (
+    "response_format",
+    "json_schema",
+    "json schema",
+    "strict",
+    "schema",
+)
+
+
+def _is_format_unsupported_error(exc: httpx.HTTPStatusError) -> bool:
+    """True if a 4xx looks like a response_format/json_schema rejection."""
+    if exc.response.status_code not in (400, 422):
+        return False
+    try:
+        body = exc.response.text.lower()
+    except Exception:
+        return False
+    return any(marker in body for marker in _FORMAT_UNSUPPORTED_MARKERS)
+
+
+def _downgrade_response_format(rf: dict | None) -> dict | None:
+    """Next rung: strict json_schema -> non-strict json_schema -> json_object -> None."""
+    if not isinstance(rf, dict):
+        return None
+    if rf.get("type") == "json_schema":
+        js = rf.get("json_schema") or {}
+        if js.get("strict"):
+            return {**rf, "json_schema": {**js, "strict": False}}
+        return {"type": "json_object"}
+    return None  # json_object (or anything else) has no lower rung
+
+
+async def post_chat_with_format_fallback(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    headers: dict[str, str],
+    base_body: dict[str, Any],
+    response_format: dict | None,
+    label: str = "synthetic",
+) -> httpx.Response:
+    """POST a chat-completions body, downgrading response_format on a format-unsupported 4xx.
+
+    Ladder: the given response_format -> (if strict json_schema) non-strict
+    json_schema -> json_object. 429s are still retried at each rung by
+    ``post_with_retry_on_429``. A 4xx that is NOT a response_format/json_schema
+    problem propagates unchanged, as does a format rejection once the ladder is
+    exhausted (so callers reach their existing failure path). ``base_body`` must
+    NOT contain ``response_format`` — it is set per-rung from the ladder.
+    """
+    rf = response_format
+    while True:
+        body = dict(base_body)
+        if rf is not None:
+            body["response_format"] = rf
+        try:
+            return await post_with_retry_on_429(
+                client, url, headers=headers, json=body, label=label
+            )
+        except httpx.HTTPStatusError as exc:
+            if not _is_format_unsupported_error(exc):
+                raise
+            nxt = _downgrade_response_format(rf)
+            if nxt is None:
+                raise
+            logger.warning(
+                "%s: response_format rejected (HTTP %d), downgrading and retrying",
+                label,
+                exc.response.status_code,
+            )
+            rf = nxt

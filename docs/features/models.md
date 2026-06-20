@@ -1,6 +1,6 @@
 # Model Configuration
 
-Baloo supports multiple LLM providers and models. You can use short names for convenience or specify full `provider/model` strings.
+Rocky supports multiple LLM providers and models. You can use short names for convenience or specify full `provider/model` strings.
 
 ## Model Registry
 
@@ -41,7 +41,7 @@ AGENT_MODEL=google/gemini-3.1-pro-preview
 
 ## Automatic Fallback
 
-If the primary model fails (rate limit, timeout, availability), Baloo automatically retries with a fallback model:
+If the primary model fails (rate limit, timeout, availability), Rocky automatically retries with a fallback model:
 
 ```bash
 # Default: GLM (Synthetic) primary, Gemini 3.1 Pro fallback

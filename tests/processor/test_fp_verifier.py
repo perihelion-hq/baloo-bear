@@ -483,6 +483,25 @@ class TestFPVerifierSyntheticPath:
         assert result.rejected[0].reason == "uses parameterized query"
 
     @pytest.mark.asyncio
+    async def test_synthetic_fp_verdict_uses_json_schema(self):
+        """The FP verdict call constrains output with response_format=json_schema(fp_verdict)."""
+        verifier = FPVerifier()
+        comment = _make_comment()
+        pr_ctx = _make_pr_context()
+
+        with patch(
+            "baloo.processor.fp_verifier.synthetic_json_completion",
+            new_callable=AsyncMock,
+            return_value=({"verdict": "fp", "reason": "safe"}, _synthetic_meta()),
+        ) as mock_helper:
+            await verifier.verify([comment], pr_ctx)
+
+        rf = mock_helper.call_args.kwargs["response_format"]
+        assert rf["type"] == "json_schema"
+        assert rf["json_schema"]["name"] == "fp_verdict"
+        assert rf["json_schema"]["strict"] is True
+
+    @pytest.mark.asyncio
     async def test_synthetic_fp_verdict_without_reason_fails_open(self):
         """A drop verdict must carry a non-empty reason. {"verdict":"fp"} with no
         reason is malformed — the finding must be KEPT (fail-open) and recorded

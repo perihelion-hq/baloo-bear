@@ -186,7 +186,7 @@ class Settings(BaseSettings):
     )
     thread_agent_max_replies: int = Field(
         default=3,
-        description="Max total Baloo messages per thread (original + replies) before escalation",
+        description="Max total Rocky messages per thread (original + replies) before escalation",
     )
     thread_agent_max_concurrent: int = Field(
         default=3,

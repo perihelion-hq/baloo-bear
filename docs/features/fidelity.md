@@ -14,7 +14,7 @@ This is especially useful for teams that use ticket-linked plan files as part of
 
 ## How It Works
 
-1. **Extract ticket ID** — Baloo looks for a ticket ID in the PR branch name, title, or description (e.g., `PROJ-123` from branch `feat/PROJ-123-add-auth`)
+1. **Extract ticket ID** — Rocky looks for a ticket ID in the PR branch name, title, or description (e.g., `PROJ-123` from branch `feat/PROJ-123-add-auth`)
 2. **Fetch plan file** — Looks for a plan document at a configurable path (default: `docs/plans/{ticket_id}.md`) in the PR branch
 3. **Analyze** — An LLM compares the plan against the PR diff
 4. **Score** — Produces a fidelity score (0–100) and a breakdown of matched/missing/extra items
@@ -41,7 +41,7 @@ Score: 85/100
 
 ## Plan File Format
 
-Plan files are freeform markdown. Baloo works best when the plan lists concrete deliverables:
+Plan files are freeform markdown. Rocky works best when the plan lists concrete deliverables:
 
 ```markdown
 # PROJ-123 — Add Authentication
@@ -63,7 +63,7 @@ Fidelity works best when your team commits to writing plan files before coding. 
 1. Create a ticket in your issue tracker (e.g., `PROJ-123`)
 2. Write `docs/plans/PROJ-123.md` with the planned deliverables
 3. Open the PR from a branch that includes the ticket ID (e.g., `feat/PROJ-123/add-auth`)
-4. Baloo automatically finds the plan, scores the PR, and posts the report
+4. Rocky automatically finds the plan, scores the PR, and posts the report
 
 This closes the loop between what was planned and what was actually shipped.
 
@@ -87,4 +87,4 @@ This means a high-fidelity PR with only MEDIUM issues can still be auto-approved
 
 ## No Plan? No Report
 
-If Baloo can't find a ticket ID or plan file, fidelity analysis is silently skipped. It never blocks a review.
+If Rocky can't find a ticket ID or plan file, fidelity analysis is silently skipped. It never blocks a review.

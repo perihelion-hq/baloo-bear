@@ -1,10 +1,10 @@
 # Guidelines Enforcement
 
-Baloo reads convention files from the repository being reviewed and uses them to enforce project-specific rules.
+Rocky reads convention files from the repository being reviewed and uses them to enforce project-specific rules.
 
 ## How It Works
 
-When reviewing a PR, Baloo fetches these files from the target repository (if they exist):
+When reviewing a PR, Rocky fetches these files from the target repository (if they exist):
 
 - **`AGENTS.md`** — Repository guidance for coding agents (architecture, conventions, tooling)
 - **`CONTRIBUTING.md`** — Contributor guidelines (commit format, branch naming, workflow)
@@ -26,7 +26,7 @@ Guidelines violations are reported as **CRITICAL** severity with category **"Gui
 
 ### AGENTS.md
 
-This file tells Baloo (and other coding agents) how your project works. Rules should be concrete and actionable — Baloo can only enforce what's written down.
+This file tells Rocky (and other coding agents) how your project works. Rules should be concrete and actionable — Rocky can only enforce what's written down.
 
 ```markdown
 # AGENTS.md
@@ -52,7 +52,7 @@ This file tells Baloo (and other coding agents) how your project works. Rules sh
 
 ### CONTRIBUTING.md
 
-Standard contributor guidelines. Baloo reads this alongside AGENTS.md:
+Standard contributor guidelines. Rocky reads this alongside AGENTS.md:
 
 ```markdown
 # Contributing
@@ -82,7 +82,7 @@ Examples:
 
 ## No Guidelines? No Problem
 
-If neither file exists in the repository, Baloo skips the guidelines compliance check entirely. It won't invent rules that aren't documented.
+If neither file exists in the repository, Rocky skips the guidelines compliance check entirely. It won't invent rules that aren't documented.
 
 ## Configuration
 

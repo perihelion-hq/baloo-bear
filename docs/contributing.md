@@ -1,4 +1,4 @@
-# Contributing to Baloo
+# Contributing to Rocky
 
 ## Before You Start
 

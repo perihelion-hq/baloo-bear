@@ -462,7 +462,7 @@ class TestThreadsFromIssueComments:
         assert threads == []
 
     def test_skips_comments_without_location(self):
-        comment = self._make_issue_comment(1, "🐻 Baloo review completed in 30s. No issues found!")
+        comment = self._make_issue_comment(1, "🪨 Rocky review completed in 30s. No issues found!")
         threads = _threads_from_issue_comments([comment])
         assert threads == []
 

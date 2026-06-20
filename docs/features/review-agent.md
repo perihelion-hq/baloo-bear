@@ -1,11 +1,11 @@
 # Review Agent
 
-Baloo uses [PI](https://github.com/mariozechner/pi-coding-agent) as its agentic runtime. When a PR is opened or updated, Baloo spawns a PI agent process that actively explores the repository to produce a thorough review.
+Rocky uses [PI](https://github.com/mariozechner/pi-coding-agent) as its agentic runtime. When a PR is opened or updated, Rocky spawns a PI agent process that actively explores the repository to produce a thorough review.
 
 ## How It Works
 
 1. **Webhook arrives** — GitHub sends a `pull_request` event
-2. **Context assembly** — Baloo fetches the PR diff, file list, metadata, and any prior discussion threads
+2. **Context assembly** — Rocky fetches the PR diff, file list, metadata, and any prior discussion threads
 3. **Agent spawns** — A PI process starts in RPC mode with **read-only tools**: `read`, `grep`, `find`, `ls`
 4. **Agentic review** — The agent reads changed files in full, greps for security patterns, explores project structure, checks for tests and configs
 5. **Structured output** — The agent returns a JSON object with findings (file, line, severity, category, description, recommendation)
@@ -13,7 +13,7 @@ Baloo uses [PI](https://github.com/mariozechner/pi-coding-agent) as its agentic 
 
 ## Why Agentic?
 
-Unlike simple "diff-in, comments-out" reviewers, Baloo's agent can:
+Unlike simple "diff-in, comments-out" reviewers, Rocky's agent can:
 
 - **Read full files** — not just the diff, but the entire file for context
 - **Search the codebase** — grep for patterns, find related files, check if tests exist

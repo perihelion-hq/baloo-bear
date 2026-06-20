@@ -106,7 +106,7 @@ class TestGetAgentOptions:
     def test_system_prompt_is_set(self):
         options = get_agent_options("sonnet")
         assert options.system_prompt is not None
-        assert "Baloo" in options.system_prompt
+        assert "Rocky" in options.system_prompt
 
 
 def test_thread_agent_settings_defaults():

@@ -1,6 +1,6 @@
 # Configuration Reference
 
-All Baloo settings are environment variables. Set them in `.env`, pass them via `docker-compose.yml`, or export them directly.
+All Rocky settings are environment variables. Set them in `.env`, pass them via `docker-compose.yml`, or export them directly.
 
 ## GitHub App
 
@@ -93,7 +93,7 @@ All Baloo settings are environment variables. Set them in `.env`, pass them via 
 |---|---|---|
 | `THREAD_AGENT_ENABLED` | `false` | Enable conversational thread replies to PR comments |
 | `THREAD_AGENT_MODEL` | `haiku` | Model for thread replies (short name or `provider/model`) |
-| `THREAD_AGENT_MAX_REPLIES` | `3` | Max Baloo messages per thread before escalation |
+| `THREAD_AGENT_MAX_REPLIES` | `3` | Max Rocky messages per thread before escalation |
 | `THREAD_AGENT_MAX_CONCURRENT` | `3` | Max parallel thread agent calls |
 
 ## Feedback Signals
@@ -111,7 +111,7 @@ All Baloo settings are environment variables. Set them in `.env`, pass them via 
 
 ## Multi-Broker Deployment
 
-Baloo supports running multiple broker instances against a shared database for high availability and horizontal scale.
+Rocky supports running multiple broker instances against a shared database for high availability and horizontal scale.
 
 ### Shared Model (recommended for HA)
 
@@ -160,5 +160,5 @@ Every webhook is validated before processing:
 1. HMAC-SHA256 signature verification (confirms payload is from GitHub)
 2. `installation_id` present in payload
 3. Installation filter — if `INSTALLATION_ID` is set, drop webhooks for other installations
-4. Installation token fetch — confirms installation is active and Baloo has valid auth
+4. Installation token fetch — confirms installation is active and Rocky has valid auth
 5. Repository access check — confirms the repo in the payload belongs to this installation (prevents cross-tenant payloads)
