@@ -200,58 +200,81 @@ class BalooAgent(PIAgentBase):
         return "agent_error"
 
     async def _run_with_fallback(self, query: str, review_logger: Any = None):
-        """Run query with automatic fallback to secondary model on failure."""
+        """Run the review on the primary model, falling back to the secondary.
+
+        Fallback triggers when the primary EITHER raises OR fails to produce a
+        usable (review-shaped) result. The latter is the common production case:
+        a rate-limited / quota-exhausted provider (HTTP 429) surfaces as a
+        non-review-shaped result, not an exception — so an exception-only
+        fallback would silently fail closed instead of failing over. The final
+        result is still validated by review_pr, so the fail-closed invariant
+        holds even if both models fail.
+        """
         from baloo.config.settings import get_settings
 
+        primary_err: Exception | None = None
+        primary_result = None
         try:
-            return await self.run_query(query, review_logger=review_logger)
-        except Exception as primary_err:
-            settings = get_settings()
-            fallback = settings.agent_fallback_model
-            if not fallback or "/" not in fallback:
-                raise  # No valid fallback configured
+            primary_result = await self.run_query(query, review_logger=review_logger)
+        except Exception as exc:
+            primary_err = exc
 
-            fallback_provider, fallback_model = fallback.split("/", 1)
+        # A usable primary result short-circuits — no fallback needed.
+        if primary_result is not None and _is_review_shaped(primary_result[0]):
+            return primary_result
 
-            # Don't fallback to the same provider/model we just failed with
-            if fallback_provider == self.options.provider and fallback_model == self.options.model:
-                raise
+        settings = get_settings()
+        fallback = settings.agent_fallback_model
+        same_as_primary = (
+            bool(fallback)
+            and "/" in fallback
+            and fallback.split("/", 1) == [self.options.provider, self.options.model]
+        )
+        if not fallback or "/" not in fallback or same_as_primary:
+            # No usable fallback configured.
+            if primary_err is not None:
+                raise primary_err
+            return primary_result  # non-usable; review_pr fails closed
 
-            logger.warning(
-                "Primary model %s/%s failed (%s), falling back to %s",
-                self.options.provider,
-                self.options.model,
-                primary_err,
-                fallback,
+        fallback_provider, fallback_model = fallback.split("/", 1)
+        reason = (
+            str(primary_err) if primary_err is not None else "primary produced no usable review"
+        )
+        logger.warning(
+            "Primary model %s/%s did not yield a usable review (%s); falling back to %s",
+            self.options.provider,
+            self.options.model,
+            reason,
+            fallback,
+        )
+
+        if review_logger:
+            await review_logger.fallback_triggered(
+                primary_model=f"{self.options.provider}/{self.options.model}",
+                fallback_model=fallback,
+                error=reason,
             )
 
-            if review_logger:
-                await review_logger.fallback_triggered(
-                    primary_model=f"{self.options.provider}/{self.options.model}",
-                    fallback_model=fallback,
-                    error=str(primary_err),
-                )
+        original_provider = self.options.provider
+        original_model = self.options.model
+        self.options.provider = fallback_provider
+        self.options.model = fallback_model
 
-            # Swap to fallback model
-            original_provider = self.options.provider
-            original_model = self.options.model
-            self.options.provider = fallback_provider
-            self.options.model = fallback_model
-
-            try:
-                result = await self.run_query(query, review_logger=review_logger)
-                # Tag metadata so callers know fallback was used
-                result[1]["fallback_used"] = True
-                result[1]["primary_model"] = f"{original_provider}/{original_model}"
-                result[1]["primary_error"] = str(primary_err)
-                return result
-            except Exception as fallback_err:
-                logger.error("Fallback model %s also failed: %s", fallback, fallback_err)
-                # Restore original model info on the exception metadata
-                if hasattr(primary_err, "metadata"):
-                    raise primary_err from fallback_err
+        try:
+            result = await self.run_query(query, review_logger=review_logger)
+            # Tag metadata so callers know fallback was used
+            result[1]["fallback_used"] = True
+            result[1]["primary_model"] = f"{original_provider}/{original_model}"
+            result[1]["primary_error"] = reason
+            return result
+        except Exception as fallback_err:
+            logger.error("Fallback model %s also failed: %s", fallback, fallback_err)
+            if primary_err is not None:
                 raise primary_err from fallback_err
-            finally:
-                # Restore original options
-                self.options.provider = original_provider
-                self.options.model = original_model
+            # Primary didn't raise (non-usable result) and fallback raised:
+            # return the primary result so review_pr fails closed (never approves).
+            return primary_result
+        finally:
+            # Restore original options
+            self.options.provider = original_provider
+            self.options.model = original_model

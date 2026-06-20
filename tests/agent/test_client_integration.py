@@ -607,6 +607,30 @@ class TestBalooAgentFallback:
             assert "primary_error" in result.metadata
 
     @pytest.mark.asyncio
+    async def test_fallback_when_primary_returns_unusable_result(self, sample_pr_context):
+        """The production gap: GLM 429/quota exhaustion surfaces as a
+        non-review-shaped result (NOT an exception). Fallback must still fire."""
+        agent = BalooAgent()
+        calls = []
+
+        async def fake_run_query(query, review_logger=None):
+            calls.append((agent.options.provider, agent.options.model))
+            if len(calls) == 1:
+                # Primary (GLM): unusable result, no exception (429 swallowed upstream).
+                return (None, {"model": "glm", "error_category": "no_output"})
+            # Fallback (gemini): a usable review.
+            return ({"findings": [], "summary": {}}, {"model": "gemini"})
+
+        with patch.object(agent, "run_query", new=fake_run_query):
+            result = await agent.review_pr(sample_pr_context)
+
+        assert len(calls) == 2  # fallback fired despite no exception
+        assert calls[0][0] == "synthetic"  # primary tried first
+        assert calls[1][0] == "google"  # swapped to the gemini fallback
+        assert result.metadata.get("fallback_used") is True
+        assert result.approve is True  # fallback produced a usable (empty) review
+
+    @pytest.mark.asyncio
     async def test_no_fallback_when_same_model(self, sample_pr_context):
         """Test that fallback is skipped when it's the same as primary."""
         fail_events = [
