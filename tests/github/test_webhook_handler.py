@@ -115,7 +115,7 @@ async def test_review_summary_uses_actionable_findings_after_resolved_thread_ski
     mock_agent = MagicMock()
     mock_agent.review_pr = AsyncMock(
         return_value=ReviewResult(
-            summary="## 🐻 Baloo Review Summary\n\n🟠 **2** High\n**Total**: 2 issue(s) found",
+            summary="## 🪨 Rocky Review Summary\n\n🟠 **2** High\n**Total**: 2 issue(s) found",
             comments=[
                 ReviewComment(
                     path="file.py",

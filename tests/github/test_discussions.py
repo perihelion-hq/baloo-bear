@@ -14,11 +14,11 @@ from baloo.github.models import DiscussionComment, DiscussionThread
 
 
 def test_build_review_threads_groups_by_root():
-    """Inline review comments should group into Baloo-aware threads."""
+    """Inline review comments should group into Rocky-aware threads."""
     raw_comments = [
         {
             "id": 10,
-            "body": "🐻 Baloo: please add input validation",
+            "body": "🪨 Rocky: please add input validation",
             "user": {"login": "baloo-reviewer[bot]"},
             "created_at": "2025-02-14T10:00:00Z",
             "updated_at": "2025-02-14T10:00:00Z",
@@ -125,7 +125,7 @@ def test_developer_reply_not_resolved_not_awaiting():
     raw_comments = [
         {
             "id": 20,
-            "body": "🐻 Baloo: SQL injection risk",
+            "body": "🪨 Rocky: SQL injection risk",
             "user": {"login": "baloo-reviewer[bot]"},
             "created_at": "2025-02-14T10:00:00Z",
             "updated_at": "2025-02-14T10:00:00Z",
@@ -253,7 +253,7 @@ def test_is_baloo_actor_recognizes_rocky_and_baloo():
     """Bot self-recognition matches the current 'rocky' brand and historical 'baloo'."""
     # Current deployed brand: rocky-pi[bot] posting "Rocky" comments.
     assert is_baloo_actor("rocky-pi[bot]") is True
-    assert is_baloo_actor("some-bot[bot]", "🐻 Rocky look your code. Done.") is True
+    assert is_baloo_actor("some-bot[bot]", "🪨 Rocky look your code. Done.") is True
     # Historical brand stays recognized after the rename.
     assert is_baloo_actor("baloo-reviewer[bot]") is True
     assert is_baloo_actor("some-bot[bot]", "🐻 Baloo review completed.") is True
