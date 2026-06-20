@@ -118,6 +118,7 @@ resource "google_cloud_run_v2_service" "baloo" {
 
   depends_on = [
     google_secret_manager_secret_iam_member.accessor,
+    google_secret_manager_secret_version.database_url,
     google_project_iam_member.cloudsql_client,
   ]
 }

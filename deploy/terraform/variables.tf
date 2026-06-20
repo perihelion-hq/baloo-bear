@@ -37,12 +37,6 @@ variable "db_tier" {
   default = "db-custom-1-3840" # 1 vCPU / 3.75 GB; tune later
 }
 
-variable "db_password" {
-  type      = string
-  sensitive = true
-  # Provided at apply time via TF_VAR_db_password; never committed.
-}
-
 variable "max_instances" {
   type    = number
   default = 4

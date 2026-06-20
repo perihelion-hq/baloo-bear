@@ -35,8 +35,18 @@ resource "google_sql_database" "baloo" {
   instance = google_sql_database_instance.baloo.name
 }
 
+# Single source of truth for the DB password: terraform generates it once
+# (stable in state) and uses it for BOTH the Cloud SQL user and the
+# DATABASE_URL secret (secrets.tf) — so the two can never drift, which was the
+# recurring "password authentication failed" footgun. URL-safe (no special
+# chars) so it embeds in the connection string without encoding.
+resource "random_password" "db" {
+  length  = 32
+  special = false
+}
+
 resource "google_sql_user" "baloo" {
   name     = "baloo"
   instance = google_sql_database_instance.baloo.name
-  password = var.db_password
+  password = random_password.db.result
 }
