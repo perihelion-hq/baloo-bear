@@ -1441,7 +1441,7 @@ async def process_pr_review(
                         )
             elif request_changes and not has_new_feedback:
                 logger.info(
-                    "Baloo is still waiting on existing threads; no new review posted to avoid noise."
+                    "Rocky is still waiting on existing threads; no new review posted to avoid noise."
                 )
 
             # Post approval review if no blocking issues

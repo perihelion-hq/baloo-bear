@@ -11,9 +11,9 @@
 
 ---
 
-Baloo is a **GitHub App** that automatically reviews pull requests using LLMs. It installs on your repos, reads every PR diff, and posts actionable review comments — catching bugs, security issues, and guideline violations before humans look at the code.
+Rocky is a **GitHub App** that automatically reviews pull requests using LLMs. It installs on your repos, reads every PR diff, and posts actionable review comments — catching bugs, security issues, and guideline violations before humans look at the code.
 
-## Why Baloo?
+## Why Rocky?
 
 - **Catches what linters can't** — logic errors, silent failures, security antipatterns, missing error handling
 - **Respects your conventions** — reads `AGENTS.md` and `CONTRIBUTING.md` from your repo and enforces them
@@ -23,10 +23,10 @@ Baloo is a **GitHub App** that automatically reviews pull requests using LLMs. I
 
 ## What It Looks Like
 
-When a PR is opened or updated, Baloo posts a review:
+When a PR is opened or updated, Rocky posts a review:
 
 ```
-🐻 Baloo review completed in 45s.
+🪨 Rocky review completed in 45s.
 Found 2 issue(s): 0 critical, 1 high, 1 medium, 0 low.
 ```
 
@@ -79,7 +79,7 @@ docker compose up --build
 
 ### 3. Install the App
 
-Install the GitHub App on your repositories. Open a PR — Baloo will review it automatically.
+Install the GitHub App on your repositories. Open a PR — Rocky will review it automatically.
 
 📖 **Full setup guide**: [docs/getting-started.md](docs/getting-started.md)
 

@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
 
 # Disable docs in production for security
 app = FastAPI(
-    title="Baloo Code Review Agent",
+    title="Rocky Code Review Agent",
     docs_url=None if settings.app_environment == "production" else "/docs",
     redoc_url=None if settings.app_environment == "production" else "/redoc",
     openapi_url=None if settings.app_environment == "production" else "/openapi.json",

@@ -1,6 +1,6 @@
 # Severity Routing
 
-Baloo routes findings to different GitHub surfaces based on severity, so developers see critical issues prominently while non-blocking suggestions stay out of the way.
+Rocky routes findings to different GitHub surfaces based on severity, so developers see critical issues prominently while non-blocking suggestions stay out of the way.
 
 ## Routing Rules
 
@@ -19,7 +19,7 @@ Posted as inline comments on the exact file and line. The PR review is submitted
 
 ### MEDIUM → Checks API
 
-Posted as annotations on a GitHub Check called "Baloo Code Quality". These appear in the Checks tab and as non-blocking annotations on the PR diff, but don't block merge.
+Posted as annotations on a GitHub Check called "Rocky Code Quality". These appear in the Checks tab and as non-blocking annotations on the PR diff, but don't block merge.
 
 If the Checks API fails (e.g., missing permissions), MEDIUM findings fall back to regular issue comments.
 

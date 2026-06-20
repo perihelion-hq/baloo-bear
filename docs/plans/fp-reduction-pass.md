@@ -2,7 +2,7 @@
 
 ## Problem
 
-Baloo produces false positives that erode developer trust. The current
+Rocky produces false positives that erode developer trust. The current
 `FindingsFilter` uses regex heuristics (hedging language, short comments,
 severity threshold) but can't reason about whether a finding is actually
 correct. We need an LLM-powered verification step.

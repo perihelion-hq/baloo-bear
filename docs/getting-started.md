@@ -1,17 +1,17 @@
 # Getting Started
 
-This guide is for running Baloo as a service and getting a real pull request review end to end.
+This guide is for running Rocky as a service and getting a real pull request review end to end.
 
 It is the operator path, not the contributor path.
 
-It uses the root `docker-compose.yml` and a local PostgreSQL container. This is the setup to use if you want to prove Baloo works against a real GitHub App before doing any code changes.
+It uses the root `docker-compose.yml` and a local PostgreSQL container. This is the setup to use if you want to prove Rocky works against a real GitHub App before doing any code changes.
 
 By the end of this guide, you will have:
 
-- a GitHub App configured for Baloo
-- a local Baloo stack running with Docker Compose
+- a GitHub App configured for Rocky
+- a local Rocky stack running with Docker Compose
 - a public webhook URL using `ngrok`
-- Baloo installed on one canary repository
+- Rocky installed on one canary repository
 - a successful PR review
 
 ## 1. Prerequisites
@@ -23,7 +23,7 @@ You need:
 - `ngrok`
 - an Anthropic API key
 
-You do not need a Python development environment just to try Baloo as a service.
+You do not need a Python development environment just to try Rocky as a service.
 
 ## 2. Clone the Repository
 
@@ -38,13 +38,13 @@ In GitHub:
 
 1. Open `Settings -> Developer settings -> GitHub Apps -> New GitHub App`
 2. Choose an app name
-3. Set the homepage URL to the Baloo repository URL
+3. Set the homepage URL to the Rocky repository URL
 4. Set a placeholder webhook URL for now if you do not have one yet
 5. Generate a webhook secret
 6. Create the app
 7. Generate a private key for the app
 
-You can update the webhook URL after Baloo is running behind `ngrok`.
+You can update the webhook URL after Rocky is running behind `ngrok`.
 
 Important:
 
@@ -60,7 +60,7 @@ Set these repository permissions:
 - `Issues: Read and write`
 - `Checks: Read and write`
 
-These are needed because Baloo:
+These are needed because Rocky:
 
 - reads PRs and posts review comments
 - reads repository files such as `AGENTS.md` and `CONTRIBUTING.md`
@@ -76,14 +76,14 @@ Enable these events:
 - `Pull request review`
 - `Pull request review comment`
 
-Baloo currently reacts to:
+Rocky currently reacts to:
 
 - PR opened, synchronized, reopened, and ready-for-review transitions
 - PR comments
 - PR review comments
 - submitted human reviews in `commented` and `changes_requested` states
 
-## 6. Configure Baloo
+## 6. Configure Rocky
 
 Copy the Docker environment template:
 
@@ -123,7 +123,7 @@ Notes:
 - the default compose stack does not publish PostgreSQL to your host, so it should not conflict with a local Postgres instance
 - if you keep multiple env files, you can run compose with `BALOO_ENV_FILE=<your-file> docker compose up --build` instead of copying over `.env`
 
-## 7. Start Baloo With Docker Compose
+## 7. Start Rocky With Docker Compose
 
 ```bash
 docker compose up --build
@@ -184,27 +184,27 @@ Create a small test PR in the canary repository.
 A simple smoke test:
 
 1. Open a PR
-2. Wait for Baloo to review it
+2. Wait for Rocky to review it
 3. Push another commit to the same PR
 4. Add a PR comment
 
 Expected results:
 
 - GitHub webhook deliveries return `200`
-- Baloo may receive `check_suite` events and ignore them; that is normal
-- Baloo posts a progress comment
-- Baloo posts review output
+- Rocky may receive `check_suite` events and ignore them; that is normal
+- Rocky posts a progress comment
+- Rocky posts review output
 - medium findings appear in the Checks tab when present
 - the second push triggers another review
 
 ## 11. Optional Repository Conventions
 
-Baloo becomes more useful when the reviewed repository contains:
+Rocky becomes more useful when the reviewed repository contains:
 
 - `AGENTS.md`
 - `CONTRIBUTING.md`
 
-Baloo reads those files from the target repository and uses them as review guidance.
+Rocky reads those files from the target repository and uses them as review guidance.
 
 If fidelity analysis is enabled, the reviewed repository can also include plan files such as:
 
@@ -220,13 +220,13 @@ docs/plans/TICKET-123-some-feature.md
 - Check that the `ngrok` tunnel is still running
 - Check that `GITHUB_WEBHOOK_SECRET` matches the GitHub App webhook secret
 
-### Baloo cannot authenticate to GitHub
+### Rocky cannot authenticate to GitHub
 
 - Check that `GITHUB_APP_ID` is the numeric App ID, not the Client ID
 - Check that the private key belongs to the same GitHub App
 - Check that the app is installed on the repository you are testing
 
-### Baloo posts comments but no Checks appear
+### Rocky posts comments but no Checks appear
 
 - Verify the app has `Checks: Read and write`
 - Verify `REVIEW_USE_CHECKS_API` is not disabled
@@ -237,7 +237,7 @@ docs/plans/TICKET-123-some-feature.md
 - Set `DASHBOARD_ENABLED=true`
 - Set `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD`
 
-### Baloo reviews the wrong repositories
+### Rocky reviews the wrong repositories
 
 - Reduce the GitHub App installation scope
 - Use one canary repository first

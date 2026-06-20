@@ -12,7 +12,7 @@ BUILD_DATE = os.getenv("BALOO_BUILD_DATE", "unknown")
 def get_version_info() -> str:
     """Get formatted version information string."""
     if VERSION == "dev":
-        return f"Baloo v{VERSION} (local development)"
+        return f"Rocky v{VERSION} (local development)"
 
     # Only truncate if it's a real SHA (not 'unknown', 'dev', or empty)
     commit_display = (
@@ -20,4 +20,4 @@ def get_version_info() -> str:
         if COMMIT_SHA not in ("unknown", "dev", "") and len(COMMIT_SHA) >= 8
         else COMMIT_SHA
     )
-    return f"Baloo v{VERSION} (commit: {commit_display}, built: {BUILD_DATE})"
+    return f"Rocky v{VERSION} (commit: {commit_display}, built: {BUILD_DATE})"

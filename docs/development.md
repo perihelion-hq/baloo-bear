@@ -1,12 +1,12 @@
 # Development
 
-This guide is for contributors working on Baloo itself.
+This guide is for contributors working on Rocky itself.
 
 Use this path when you want to:
 
 - edit code locally
 - run tests and linters
-- debug Baloo without Docker
+- debug Rocky without Docker
 - work on prompts, webhook behavior, or internals
 
 ## 1. Prerequisites
@@ -46,7 +46,7 @@ The file references the API key only as `${SYNTHETIC_API_KEY}`, so set that in
 your environment (`.env`) — no secret is stored in the file. See
 [Models → Custom Providers](features/models.md#custom-providers).
 
-## 3. Run Baloo Directly
+## 3. Run Rocky Directly
 
 ```bash
 uv run python main.py
