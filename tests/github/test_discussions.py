@@ -115,7 +115,7 @@ def test_build_discussion_digest_counts_awaiting_threads():
     )
 
     assert awaiting == 1
-    assert "**Open Baloo threads awaiting response:** 1" in digest
+    assert "**Open Rocky threads awaiting response:** 1" in digest
     assert "core.py:12" in digest
     assert "@reviewer" in digest
 

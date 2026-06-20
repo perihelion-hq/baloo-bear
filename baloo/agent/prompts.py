@@ -32,7 +32,7 @@ You have structural code analysis tools available alongside read/grep/find/ls:
 Use these selectively — not on every file, but when you need structural context to verify a finding's scope, severity, or impact.
 """
 
-REVIEW_SYSTEM_PROMPT = f"""You are Baloo, expert code reviewer. Use read/grep/find/ls tools proactively.
+REVIEW_SYSTEM_PROMPT = f"""You are Rocky, expert code reviewer. Use read/grep/find/ls tools proactively.
 
 ## Scope
 Flag only issues **introduced or made worse by this PR's changes**. Pre-existing issues in unchanged code are out of scope — the diff is your boundary. Read full files for context, but anchor every finding to a changed line.
@@ -201,16 +201,16 @@ def _discussion_section(pr_context: PRContext | dict[str, Any]) -> str:
     awaiting = _ctx_get(pr_context, "awaiting_discussions")
     awaiting_line = ""
     if isinstance(awaiting, int) and awaiting > 0:
-        awaiting_line = f"\nBaloo is still waiting on **{awaiting}** thread(s) to be addressed.\n"
+        awaiting_line = f"\nRocky is still waiting on **{awaiting}** thread(s) to be addressed.\n"
 
     # Extract Baloo's previous recommendations
     baloo_recs = _extract_baloo_recommendations(threads)
     baloo_section = ""
     if baloo_recs:
         baloo_section = f"""
-### Previous Baloo Recommendations
+### Previous Rocky Recommendations
 
-**IMPORTANT**: The following are Baloo's previous recommendations on this PR. When reviewing the same code locations:
+**IMPORTANT**: The following are Rocky's previous recommendations on this PR. When reviewing the same code locations:
 
 **FIRST - Check if recommendations were addressed**:
 1. **Read the current code** at each location using the Read tool
@@ -398,7 +398,7 @@ This is a configuration or dependency file change. Perform a focused review:
 
 **FIRST - Check PR Context**:
 Look at the PR description above. Does it mention:
-- "Baloo" or "previous review" or "code review"?
+- "Rocky" or "Baloo" (historical) or "previous review" or "code review"?
 - "fixing" or "addresses" a build failure or compatibility issue?
 - References to another PR that had review comments?
 
@@ -495,7 +495,7 @@ Perform a thorough agentic code review following your system prompt guidelines. 
 
 ### Step 0: Understand PR Context (REQUIRED)
 **Check the PR description above carefully**. Look for:
-- Mentions of "Baloo", "previous review", "code review", "recommended"
+- Mentions of "Rocky", "Baloo" (historical), "previous review", "code review", "recommended"
 - References to fixing build failures or compatibility issues
 - Links to other PRs or issues that explain constraints
 

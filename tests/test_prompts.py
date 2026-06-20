@@ -22,14 +22,14 @@ def test_prompt_includes_discussion_digest():
         "files_changed": [{"filename": "baloo/github/webhook_handler.py"}],
         "changed_file_paths": ["baloo/github/webhook_handler.py"],
         "diff": "--- a\n+++ b\n@@\n-foo\n+bar",
-        "discussion_digest": "**Open Baloo threads awaiting response:** 1",
+        "discussion_digest": "**Open Rocky threads awaiting response:** 1",
         "awaiting_discussions": 1,
     }
 
     prompt = build_pr_review_prompt(pr_context)
 
     assert "Prior Discussion Context" in prompt
-    assert "**Open Baloo threads awaiting response:** 1" in prompt
+    assert "**Open Rocky threads awaiting response:** 1" in prompt
 
 
 def test_prompt_includes_awaiting_discussions_count():
@@ -49,7 +49,7 @@ def test_prompt_includes_awaiting_discussions_count():
 
     prompt = build_pr_review_prompt(pr_context)
 
-    assert "Baloo is still waiting on **3** thread(s)" in prompt
+    assert "Rocky is still waiting on **3** thread(s)" in prompt
 
 
 def test_prompt_without_awaiting_discussions():
