@@ -17,7 +17,9 @@ Real secret values are entered here by the operator and are never committed.
 ```bash
 cd deploy/terraform
 terraform init
-export TF_VAR_db_password="$(openssl rand -hex 24)"   # hex avoids URL-reserved chars; goes into DATABASE_URL below
+# No TF_VAR_db_password needed: terraform generates the DB password itself
+# (random_password.db) and writes it to both the Cloud SQL user and the
+# DATABASE_URL secret, so the two can never drift.
 terraform apply \
   -target=google_project_service.apis \
   -target=google_artifact_registry_repository.baloo
@@ -64,8 +66,11 @@ terraform apply \
   -target='google_secret_manager_secret_iam_member.accessor["GITHUB_PRIVATE_KEY"]' \
   -target='google_secret_manager_secret_iam_member.accessor["GITHUB_WEBHOOK_SECRET"]' \
   -target='google_secret_manager_secret_iam_member.accessor["DASHBOARD_PASSWORD"]' \
-  -target='google_secret_manager_secret_iam_member.accessor["DATABASE_URL"]'
-  # uses TF_VAR_db_password from step 1
+  -target='google_secret_manager_secret_iam_member.accessor["DATABASE_URL"]' \
+  -target=random_password.db \
+  -target=google_secret_manager_secret_version.database_url
+  # random_password.db -> google_sql_user.baloo + the DATABASE_URL secret
+  # version are both written by terraform here (single source; no manual password).
 ```
 
 > **Cloud SQL break-glass access:** the Cloud SQL instance has `ipv4_enabled =
@@ -77,16 +82,13 @@ terraform apply \
 
 ## 4. Inject secret values (operator only — values never committed/echoed)
 
-> **Gated.** Add one version per secret. `DATABASE_URL` embeds the DB password from step 1
-> and uses the Unix-socket form:
+> **Gated.** Add one version per *external* secret below. `DATABASE_URL` is
+> **managed by terraform** (`google_secret_manager_secret_version.database_url`,
+> derived from `random_password.db`) — do NOT inject it manually, or the manual
+> version shadows terraform's and re-introduces the password-drift footgun.
 
 ```bash
-CONN="$(terraform output -raw cloudsql_connection_name)"   # perihelion-485106:us-central1:rocky-pi-db
-# DATABASE_URL (note: URL-encode the password if it contains reserved chars)
-printf 'postgresql+asyncpg://baloo:%s@/baloo?host=/cloudsql/%s' "${TF_VAR_db_password}" "${CONN}" \
-  | gcloud secrets versions add DATABASE_URL --data-file=-
-
-# The rest: pipe each real value from a local file or stdin, never inline in shell history.
+# Pipe each real value from a local file or stdin, never inline in shell history.
 gcloud secrets versions add SYNTHETIC_API_KEY     --data-file=/path/to/synthetic.key
 gcloud secrets versions add GEMINI_API_KEY        --data-file=/path/to/gemini.key
 gcloud secrets versions add GITHUB_PRIVATE_KEY    --data-file=/path/to/github-app.pem
