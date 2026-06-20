@@ -106,7 +106,7 @@ def _brand_prefix() -> str:
             f'<img src="{icon_url}" width="22" height="22" '
             f'alt="{settings.brand_name}" align="absmiddle"> {settings.brand_name}'
         )
-    return f"🐻 {settings.brand_name}"
+    return f"🪨 {settings.brand_name}"
 
 
 def get_review_semaphore() -> asyncio.Semaphore:
