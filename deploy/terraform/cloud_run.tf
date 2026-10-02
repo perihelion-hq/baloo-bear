@@ -9,17 +9,20 @@ locals {
     # Primary review model. api.synthetic.new (GLM) returned 402 Payment Required on
     # every call, so reviews always fell through to the fallback. gemini-3.8-flash is
     # the GA model id from the Gemini API docs; the image's pi CLI accepts it as a
-    # custom google model id. The scope decider follows AGENT_MODEL; the FP verifier
-    # is pinned explicitly so it no longer defaults to the synthetic glm path.
+    # custom google model id. AGENT_MODEL is the bare id: the default path in
+    # get_agent_options() pairs it with AGENT_PROVIDER, and pi_runtime adds the
+    # provider prefix itself. The scope decider follows AGENT_MODEL. The FP verifier
+    # passes its model explicitly (provider/model form) so it no longer defaults to
+    # the synthetic glm path.
     AGENT_PROVIDER        = "google"
-    AGENT_MODEL           = "google/gemini-3.8-flash"
+    AGENT_MODEL           = "gemini-3.8-flash"
     AGENT_FALLBACK_MODEL  = "google/gemini-3.1-pro-preview"
     FP_VERIFICATION_MODEL = "google/gemini-3.8-flash"
     ALLOWED_REPOSITORIES  = "perihelion-hq/roster"
 
     # Fidelity report is disabled: it spawns a pi --provider anthropic subprocess
     # (fidelity_analyzer.py) that requires a real ANTHROPIC_API_KEY. We run only
-    # the synthetic GLM + gemini-fallback path, so ANTHROPIC_API_KEY carries a
+    # the gemini-3.8-flash primary + gemini-3.1-pro fallback, so ANTHROPIC_API_KEY carries a
     # placeholder version solely to satisfy the secret_env "latest" reference.
     FIDELITY_ENABLED   = "false"
     FP_AUDIT_LOG_PATH  = "/tmp/baloo/fp-audit.jsonl" # /var/log is read-only on Cloud Run
