@@ -1,15 +1,21 @@
 locals {
   # Non-secret environment (plain values).
   plain_env = {
-    DATABASE_ENABLED     = "true"
-    APP_ENVIRONMENT      = "production"
-    APP_HOST             = "0.0.0.0"
-    APP_PORT             = "8000"
-    LOG_LEVEL            = "INFO"
-    AGENT_PROVIDER       = "synthetic"
-    AGENT_MODEL          = "glm"
-    AGENT_FALLBACK_MODEL = "google/gemini-3.1-pro-preview"
-    ALLOWED_REPOSITORIES = "perihelion-hq/roster"
+    DATABASE_ENABLED = "true"
+    APP_ENVIRONMENT  = "production"
+    APP_HOST         = "0.0.0.0"
+    APP_PORT         = "8000"
+    LOG_LEVEL        = "INFO"
+    # Primary review model. api.synthetic.new (GLM) returned 402 Payment Required on
+    # every call, so reviews always fell through to the fallback. gemini-3.8-flash is
+    # the GA model id from the Gemini API docs; the image's pi CLI accepts it as a
+    # custom google model id. The scope decider follows AGENT_MODEL; the FP verifier
+    # is pinned explicitly so it no longer defaults to the synthetic glm path.
+    AGENT_PROVIDER        = "google"
+    AGENT_MODEL           = "google/gemini-3.8-flash"
+    AGENT_FALLBACK_MODEL  = "google/gemini-3.1-pro-preview"
+    FP_VERIFICATION_MODEL = "google/gemini-3.8-flash"
+    ALLOWED_REPOSITORIES  = "perihelion-hq/roster"
 
     # Fidelity report is disabled: it spawns a pi --provider anthropic subprocess
     # (fidelity_analyzer.py) that requires a real ANTHROPIC_API_KEY. We run only
@@ -72,8 +78,8 @@ resource "google_cloud_run_v2_service" "baloo" {
       resources {
         cpu_idle = false # CPU always allocated == --no-cpu-throttling
         limits = {
-          cpu    = "2"
-          memory = "2Gi"
+          cpu    = "1"
+          memory = "1536Mi"
         }
       }
 
