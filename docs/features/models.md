@@ -24,7 +24,7 @@ Rocky supports multiple LLM providers and models. You can use short names for co
 ## Choosing a Model
 
 - **Economy** (`flash`, `haiku`) — Good for simple PRs (docs, deps, configs). Fast and cheap. Also used internally for FP verification.
-- **Standard** (`standard`, `sonnet`, `gemini-pro`) — Handles most code reviews well. Best cost/quality balance.
+- **Standard** (`standard`, `sonnet`, `gemini-pro`, `gemini-3.8-flash`) — Handles most code reviews well. Best cost/quality balance. `gemini-3.8-flash` uses a 60-turn budget because it makes one tool call per turn.
 - **Premium** (`glm`, `premium`, `gemini-3.1-pro`, `opus`) — Best for complex PRs with deep logic, security-sensitive code, or architectural changes. `glm` (GLM-5.2 via Synthetic) is the default, with `premium` (Gemini 3.1 Pro) as the default fallback.
 
 ## Configuration
