@@ -1,19 +1,28 @@
 locals {
   # Non-secret environment (plain values).
   plain_env = {
-    DATABASE_ENABLED     = "true"
-    APP_ENVIRONMENT      = "production"
-    APP_HOST             = "0.0.0.0"
-    APP_PORT             = "8000"
-    LOG_LEVEL            = "INFO"
-    AGENT_PROVIDER       = "synthetic"
-    AGENT_MODEL          = "glm"
-    AGENT_FALLBACK_MODEL = "google/gemini-3.1-pro-preview"
-    ALLOWED_REPOSITORIES = "perihelion-hq/roster"
+    DATABASE_ENABLED = "true"
+    APP_ENVIRONMENT  = "production"
+    APP_HOST         = "0.0.0.0"
+    APP_PORT         = "8000"
+    LOG_LEVEL        = "INFO"
+    # Primary review model. api.synthetic.new (GLM) returned 402 Payment Required on
+    # every call, so reviews always fell through to the fallback. gemini-3.8-flash is
+    # the GA model id from the Gemini API docs; the image's pi CLI accepts it as a
+    # custom google model id. AGENT_MODEL is the bare id: the default path in
+    # get_agent_options() pairs it with AGENT_PROVIDER, and pi_runtime adds the
+    # provider prefix itself. The scope decider follows AGENT_MODEL. The FP verifier
+    # passes its model explicitly (provider/model form) so it no longer defaults to
+    # the synthetic glm path.
+    AGENT_PROVIDER        = "google"
+    AGENT_MODEL           = "gemini-3.8-flash"
+    AGENT_FALLBACK_MODEL  = "google/gemini-3.1-pro-preview"
+    FP_VERIFICATION_MODEL = "google/gemini-3.8-flash"
+    ALLOWED_REPOSITORIES  = "perihelion-hq/roster"
 
     # Fidelity report is disabled: it spawns a pi --provider anthropic subprocess
     # (fidelity_analyzer.py) that requires a real ANTHROPIC_API_KEY. We run only
-    # the synthetic GLM + gemini-fallback path, so ANTHROPIC_API_KEY carries a
+    # the gemini-3.8-flash primary + gemini-3.1-pro fallback, so ANTHROPIC_API_KEY carries a
     # placeholder version solely to satisfy the secret_env "latest" reference.
     FIDELITY_ENABLED   = "false"
     FP_AUDIT_LOG_PATH  = "/tmp/baloo/fp-audit.jsonl" # /var/log is read-only on Cloud Run
@@ -72,8 +81,8 @@ resource "google_cloud_run_v2_service" "baloo" {
       resources {
         cpu_idle = false # CPU always allocated == --no-cpu-throttling
         limits = {
-          cpu    = "2"
-          memory = "2Gi"
+          cpu    = "1"
+          memory = "1536Mi"
         }
       }
 

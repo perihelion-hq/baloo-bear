@@ -1,7 +1,7 @@
 project_id    = "perihelion-485106"
 region        = "us-central1"
 service_name  = "rocky-pi"
-db_tier       = "db-custom-1-3840"
+db_tier       = "db-g1-small"
 max_instances = 4
 # db_password is NOT a variable anymore: terraform generates it (random_password.db)
 # and writes it to both the Cloud SQL user and the DATABASE_URL secret.

@@ -34,7 +34,7 @@ variable "installation_id" {
 
 variable "db_tier" {
   type    = string
-  default = "db-custom-1-3840" # 1 vCPU / 3.75 GB; tune later
+  default = "db-g1-small" # shared-core 1.7 GB; right-sized 2026-10-02 (7-day peak 18% CPU, 245 MB)
 }
 
 variable "max_instances" {
