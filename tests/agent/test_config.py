@@ -68,7 +68,7 @@ class TestGetAgentOptions:
         options = get_agent_options()
         assert options.provider == "google"
         assert options.model == "gemini-3.8-flash"
-        assert options.max_turns == 60
+        assert options.max_turns == 120
 
     # --- Synthetic short names ---
 
