@@ -24,7 +24,8 @@ MODEL_REGISTRY: dict[str, tuple[str, str, int]] = {
     "gemini-3.1-pro": ("google", "gemini-3.1-pro-preview", 30),
     # gemini-3.8-flash makes one tool call per turn: a 2-file review measured 35 turns
     # (34 tool calls) before emitting its findings, so the generic 20-turn budget
-    # aborted every review. 60 leaves headroom within pi_runtime's 10-minute timeout.
+    # aborted every review. 60 leaves headroom above the observed 35-turn review; the
+    # fallback inherits this budget when the primary fails.
     "gemini-3.8-flash": ("google", "gemini-3.8-flash", 60),
     "opus": ("anthropic", "claude-opus-4-6", 30),
 }
