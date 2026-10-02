@@ -58,6 +58,18 @@ class TestGetAgentOptions:
         assert options.provider == "google"
         assert options.max_turns == 30
 
+    def test_default_model_gemini_3_8_flash_gets_its_turn_budget(self, monkeypatch):
+        # Deployed as AGENT_PROVIDER=google + AGENT_MODEL=gemini-3.8-flash and resolved
+        # through the default (no-argument) path used by BalooAgent and the scope decider.
+        from baloo.agent import config
+
+        monkeypatch.setattr(config.settings, "agent_model", "gemini-3.8-flash")
+        monkeypatch.setattr(config.settings, "agent_provider", "google")
+        options = get_agent_options()
+        assert options.provider == "google"
+        assert options.model == "gemini-3.8-flash"
+        assert options.max_turns == 60
+
     # --- Synthetic short names ---
 
     def test_get_options_with_glm_short_name(self):

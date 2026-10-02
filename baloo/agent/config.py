@@ -22,6 +22,10 @@ MODEL_REGISTRY: dict[str, tuple[str, str, int]] = {
     "glm": ("synthetic", "hf:zai-org/GLM-5.2", 30),
     "premium": ("google", "gemini-3.1-pro-preview", 30),
     "gemini-3.1-pro": ("google", "gemini-3.1-pro-preview", 30),
+    # gemini-3.8-flash makes one tool call per turn: a 2-file review measured 35 turns
+    # (34 tool calls) before emitting its findings, so the generic 20-turn budget
+    # aborted every review. 60 leaves headroom within pi_runtime's 10-minute timeout.
+    "gemini-3.8-flash": ("google", "gemini-3.8-flash", 60),
     "opus": ("anthropic", "claude-opus-4-6", 30),
 }
 

@@ -14,6 +14,7 @@ Rocky supports multiple LLM providers and models. You can use short names for co
 | `glm` | Synthetic | hf:zai-org/GLM-5.2 | 30 | Premium |
 | `premium` | Google | gemini-3.1-pro-preview | 30 | Premium |
 | `gemini-3.1-pro` | Google | gemini-3.1-pro-preview | 30 | Premium |
+| `gemini-3.8-flash` | Google | gemini-3.8-flash | 60 | Standard |
 | `opus` | Anthropic | claude-opus-4-6 | 30 | Premium |
 
 > `glm` is the **default** primary model, served through Synthetic's
