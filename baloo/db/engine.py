@@ -63,9 +63,11 @@ def _run_alembic_migrations(database_url: str) -> bool:
         logger.warning("alembic.ini not found at %s, skipping migrations", alembic_ini)
         return False
 
-    # Convert async URL to sync for Alembic
-    # e.g. postgresql+asyncpg:// -> postgresql://
-    sync_url = database_url.replace("+asyncpg", "").replace("+aiosqlite", "")
+    # Convert async URL to sync for Alembic, naming the declared sync driver
+    # (psycopg2-binary) explicitly: SQLAlchemy 2.1 changed the default driver for a
+    # bare postgresql:// URL to psycopg 3, which is not installed.
+    # e.g. postgresql+asyncpg:// -> postgresql+psycopg2://
+    sync_url = database_url.replace("+asyncpg", "+psycopg2").replace("+aiosqlite", "")
 
     alembic_cfg = Config(str(alembic_ini))
     alembic_cfg.set_main_option("sqlalchemy.url", sync_url)

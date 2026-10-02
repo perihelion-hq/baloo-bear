@@ -60,3 +60,19 @@ def test_advisory_lock_failure_does_not_block_migrations():
 
     assert result is True
     mock_upgrade.assert_called_once()
+
+
+def test_asyncpg_url_uses_the_declared_psycopg2_sync_driver():
+    # A bare postgresql:// URL resolves to psycopg 3 on SQLAlchemy 2.1+, which is not
+    # installed; the production DATABASE_URL is postgresql+asyncpg://.
+    with patch("sqlalchemy.create_engine") as create_engine:
+        create_engine.return_value.connect.side_effect = RuntimeError("stop after URL")
+        from baloo.db.engine import _run_alembic_migrations
+
+        with patch("pathlib.Path.exists", return_value=True), patch("alembic.config.Config"):
+            try:
+                _run_alembic_migrations("postgresql+asyncpg://u:p@/db?host=/cloudsql/x")
+            except RuntimeError:
+                pass
+
+    assert create_engine.call_args.args[0] == "postgresql+psycopg2://u:p@/db?host=/cloudsql/x"
