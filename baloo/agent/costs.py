@@ -22,7 +22,7 @@ class NormalizedUsage:
 
 
 @dataclass(frozen=True)
-class ModelPricing:
+class ModelPricing(object):
     """Per-million-token prices for a model family."""
 
     input_per_mtok: float
